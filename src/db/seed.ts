@@ -1,7 +1,27 @@
 import "dotenv/config";
+import { readFileSync } from "node:fs";
 import cities from "all-the-cities";
 import { db } from "./index.js";
 import { dailyAggregates, places, regions, reports } from "./schema.js";
+
+// Readable names so users never see raw GeoNames codes. Country comes from
+// the built-in Intl data; region (admin1) from the GeoNames names dataset.
+const admin1Names: Record<string, string> = JSON.parse(
+  readFileSync(new URL("./data/admin1.json", import.meta.url), "utf8"),
+);
+const countryDisplay = new Intl.DisplayNames(["en"], { type: "region" });
+
+function countryName(code: string): string {
+  try {
+    return countryDisplay.of(code) ?? code;
+  } catch {
+    return code;
+  }
+}
+
+function admin1Name(country: string, adminCode: string): string {
+  return admin1Names[`${country}.${adminCode}`] ?? "";
+}
 
 /**
  * Seeds the worldwide place index and the agglomerations they report under.
@@ -58,8 +78,8 @@ function toRegionRow(c: City) {
   return {
     geonameId: c.cityId,
     name: c.name,
-    admin1: c.adminCode ?? "",
-    country: c.country,
+    admin1: admin1Name(c.country, c.adminCode),
+    country: countryName(c.country),
     population: c.population,
     lat: c.loc.coordinates[1],
     lng: c.loc.coordinates[0],

@@ -133,10 +133,15 @@ curl "http://localhost:3000/places/search?q=zelen&limit=3"
   {
     "placeId": 104187,
     "name": "Zelenodolsk",
-    "admin1": "73",
-    "country": "RU",
+    "admin1": "Tatarstan Republic",
+    "country": "Russia",
     "population": 99600,
-    "region": { "id": 2162, "name": "Kazan", "admin1": "73", "country": "RU" }
+    "region": {
+      "id": 2162,
+      "name": "Kazan",
+      "admin1": "Tatarstan Republic",
+      "country": "Russia"
+    }
   }
 ]
 ```
@@ -145,8 +150,8 @@ curl "http://localhost:3000/places/search?q=zelen&limit=3"
 | ------------- | ------ | ----- |
 | `placeId`     | int    | pass to `POST /reports` |
 | `name`        | string | place name |
-| `admin1`      | string | GeoNames admin1 code (e.g. `73`, `TX`), may be empty |
-| `country`     | string | ISO 3166-1 alpha-2 |
+| `admin1`      | string | full region/state name (e.g. `Texas`), may be empty |
+| `country`     | string | full country name (e.g. `United States`) |
 | `population`  | int    | |
 | `region.id`   | int    | the region it reports under; pass to `/regions/:id/trends` |
 | `region.*`    |        | region's name / admin1 / country |
@@ -264,8 +269,8 @@ curl "http://localhost:3000/regions/status?date=2026-06-02"
   {
     "regionId": 2162,
     "name": "Kazan",
-    "admin1": "73",
-    "country": "RU",
+    "admin1": "Tatarstan Republic",
+    "country": "Russia",
     "lat": 55.78874,
     "lng": 49.12214,
     "date": "2026-06-02",
@@ -280,8 +285,8 @@ curl "http://localhost:3000/regions/status?date=2026-06-02"
 | ------------- | ------ | ----- |
 | `regionId`    | int    | region id |
 | `name`        | string | region (metro) name |
-| `admin1`      | string | GeoNames admin1 code |
-| `country`     | string | ISO 3166-1 alpha-2 |
+| `admin1`      | string | full region/state name |
+| `country`     | string | full country name |
 | `lat` / `lng` | float  | dot position for the map |
 | `reportCount` | int    | reports that day |
 | `avgSeverity` | float  | average severity (round for display) |
