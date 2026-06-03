@@ -1,12 +1,28 @@
-# achoo — API
+# achoo
 
 Community allergy severity tracker. Anonymous reports aggregated by region into
 trend graphs and red/yellow/green/purple status colors.
 
-Stack: **Hono · PostgreSQL · Drizzle ORM · Zod · TypeScript**
+This is the **API**. The web frontend lives in a **separate repo**
+(`../achoo-web` — React · TypeScript · Vite).
+
+- **API** (this repo) — **Hono · PostgreSQL · Drizzle ORM · Zod · TypeScript**
+- **Web** (separate repo) — report flow now; world map next
 
 Docs: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (how it's built) ·
 [`docs/API.md`](docs/API.md) (endpoint reference).
+
+## Run both
+
+```bash
+# terminal 1 — API (needs Postgres up + migrated + seeded, see Setup below)
+npm run dev                                   # http://localhost:3000
+
+# terminal 2 — web app (separate repo)
+cd ../achoo-web && npm install && npm run dev # http://localhost:5173
+```
+
+The web app reads `VITE_API_URL` (defaults to `http://localhost:3000`).
 
 ## Privacy model
 

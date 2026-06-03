@@ -1,11 +1,14 @@
 import "dotenv/config";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { NotFoundError } from "./lib/errors.js";
 import { router } from "./routes/index.js";
 
 const app = new Hono();
 
+// Public anonymous API — allow browser clients from any origin.
+app.use("/*", cors());
 app.route("/", router);
 
 // Central error handler — maps domain errors thrown by services to HTTP.
