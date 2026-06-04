@@ -89,7 +89,9 @@ wrong layer.
 
 ## 4. A request traced: `POST /reports`
 
-Body: `{ "placeId": 104187, "allergen": "birch", "severity": 5 }` (Zelenodolsk).
+Body: `{ "placeId": 104187, "reports": [{ "allergen": "birch", "severity": 5 }] }`
+(Zelenodolsk). `reports` is an array so a user can submit several allergens at
+once, each at its own severity.
 
 **1. Route** — match path, validate, hand off:
 
@@ -118,11 +120,15 @@ const [place] = await db.select({ regionId: places.regionId })
   .from(places).where(eq(places.id, input.placeId));
 if (!place) throw new NotFoundError("unknown place");
 
-const [row] = await db.insert(reports)
-  .values({ regionId: place.regionId, allergen, severity }).returning();
+// One row per reported allergen, then refresh each touched bucket.
+const rows = await db.insert(reports)
+  .values(input.reports.map((r) =>
+    ({ regionId: place.regionId, allergen: r.allergen, severity: r.severity })))
+  .returning();
 
-await refreshAggregate(row.regionId, row.allergen, row.reportedOn);
-return row;
+for (const row of rows)
+  await refreshAggregate(row.regionId, row.allergen, row.reportedOn);
+return rows;
 ```
 
 Here Zelenodolsk's `placeId` (104187) is translated to **Kazan's `regionId`**

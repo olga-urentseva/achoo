@@ -13,7 +13,9 @@ import {
   timestamp,
 } from "drizzle-orm/pg-core";
 
-/** Single source of truth for the allergen list — reused by the DB enum and Zod. */
+/**
+ * The selectable allergens — what users pick from and what `/meta` advertises.
+ */
 export const ALLERGENS = [
   "birch",
   "oak",
@@ -25,9 +27,19 @@ export const ALLERGENS = [
   "olive",
 ] as const;
 
-export type Allergen = (typeof ALLERGENS)[number];
+/**
+ * Sentinel for "I have symptoms but don't know which allergen". Stored as a
+ * real report so it counts toward a region's severity, but kept out of the
+ * selectable list above so it never shows up as a pickable chip.
+ */
+export const UNKNOWN_ALLERGEN = "unknown" as const;
 
-export const allergenEnum = pgEnum("allergen", ALLERGENS);
+/** Every value a report's `allergen` column can hold (DB enum + validation). */
+export const REPORT_ALLERGENS = [...ALLERGENS, UNKNOWN_ALLERGEN] as const;
+
+export type Allergen = (typeof REPORT_ALLERGENS)[number];
+
+export const allergenEnum = pgEnum("allergen", REPORT_ALLERGENS);
 
 /**
  * Agglomerations — the aggregation units (anchors). Reports, daily

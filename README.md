@@ -72,10 +72,11 @@ Full reference with request/response shapes and error formats:
 | ------ | ------------------------ | --------------------------------------------- |
 | GET    | `/health`                | liveness check                                |
 | GET    | `/meta`                  | allergen list + severity scale + colors       |
+| GET    | `/meta/cross-reactivity` | shared-protein map for client recommendations |
 | GET    | `/places/search`         | typeahead (`?q=zelen&limit=10`)               |
 | GET    | `/regions/status`        | today's color per active region (`?date=`)    |
 | GET    | `/regions/:id/trends`    | daily trend (`?allergen=`, `?days=30`)        |
-| POST   | `/reports`               | submit one anonymous report                   |
+| POST   | `/reports`               | submit an anonymous report (one or more allergens) |
 
 ### Find a place, then submit
 
@@ -88,7 +89,7 @@ curl "http://localhost:3000/places/search?q=zelenodolsk"
 
 curl -X POST http://localhost:3000/reports \
   -H 'content-type: application/json' \
-  -d '{ "placeId": 104187, "allergen": "birch", "severity": 5 }'
+  -d '{ "placeId": 104187, "reports": [{ "allergen": "birch", "severity": 5 }] }'
 ```
 
 ### Region colors today

@@ -7,8 +7,8 @@ import { refreshAggregate } from "./aggregate.service.js";
 
 /**
  * Resolve the chosen place to the region it aggregates into and store one
- * anonymous report, then refresh that region's daily rollup. Only the
- * region, allergen, severity and date are persisted.
+ * anonymous report per reported allergen, then refresh each touched daily
+ * rollup. Only the region, allergen, severity and date are persisted.
  */
 export async function createReport(input: CreateReportInput) {
   const [place] = await db
@@ -17,17 +17,22 @@ export async function createReport(input: CreateReportInput) {
     .where(eq(places.id, input.placeId));
   if (!place) throw new NotFoundError("unknown place");
 
-  const [row] = await db
+  const rows = await db
     .insert(reports)
-    .values({
-      regionId: place.regionId,
-      allergen: input.allergen,
-      severity: input.severity,
-    })
+    .values(
+      input.reports.map((r) => ({
+        regionId: place.regionId,
+        allergen: r.allergen,
+        severity: r.severity,
+      })),
+    )
     .returning();
-  if (!row) throw new Error("failed to insert report");
+  if (rows.length === 0) throw new Error("failed to insert report");
 
-  await refreshAggregate(row.regionId, row.allergen, row.reportedOn);
+  // All rows share the same region and date; refresh each allergen bucket.
+  for (const row of rows) {
+    await refreshAggregate(row.regionId, row.allergen, row.reportedOn);
+  }
 
-  return row;
+  return rows;
 }
