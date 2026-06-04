@@ -100,10 +100,65 @@ Static metadata for building the report form. Safe to fetch once and cache.
 ```json
 {
   "allergens": ["birch", "oak", "alder", "hazel", "grass", "mugwort", "ragweed", "olive"],
+  "unknownAllergen": "unknown",
   "severity": { "min": 1, "max": 6 },
   "colors": ["green", "yellow", "red", "purple"]
 }
 ```
+
+`unknownAllergen` is the sentinel a user submits when they have symptoms but
+don't know the cause. It's deliberately **not** in `allergens`, so it never
+renders as a selectable chip — submit it on its own (see `POST /reports`).
+
+---
+
+### GET /meta/cross-reactivity
+
+Public pollen cross-reactivity map: which allergens share a protein family, so
+a sensitivity to one often comes with the others. Static reference data, safe
+to fetch once and cache.
+
+This carries **no personal data**. The client pairs it with the user's own
+allergen list — which lives only in their browser's `localStorage`, never on
+the server — to suggest allergens they may also react to. Recommendations are
+computed on-device; the server never sees a user's allergen profile.
+
+**200** — array of protein groups:
+
+```json
+[
+  {
+    "protein": "Bet v 1 (PR-10)",
+    "family": "Fagales tree pollen",
+    "strength": "strong",
+    "allergens": ["birch", "alder", "hazel", "oak"]
+  },
+  {
+    "protein": "Artemisia / Ambrosia weed group",
+    "family": "Weed pollen",
+    "strength": "moderate",
+    "allergens": ["mugwort", "ragweed"]
+  },
+  {
+    "protein": "Profilin",
+    "family": "Panallergen (broad, usually mild)",
+    "strength": "weak",
+    "allergens": ["birch", "grass", "mugwort", "ragweed", "olive"]
+  }
+]
+```
+
+| Field       | Type     | Notes |
+| ----------- | -------- | ----- |
+| `protein`   | string   | the shared molecule that explains the cross-reactivity |
+| `family`    | string   | human-readable family label (for showing the user "why") |
+| `strength`  | string   | `strong` / `moderate` / `weak` — how strongly the protein drives cross-reactivity; rank or filter suggestions by this |
+| `allergens` | string[] | members of the group; each is one of the allergen enum values |
+
+> **Client recipe:** for each allergen in the user's local list, find the
+> groups containing it and suggest the *other* members, ranked by `strength`.
+> Treat `weak` (profilin) links as hints, not strong predictions. Pair with a
+> "not medical advice" disclaimer.
 
 ---
 
@@ -163,43 +218,67 @@ curl "http://localhost:3000/places/search?q=zelen&limit=3"
 
 ### POST /reports
 
-Submit one anonymous report. The `placeId` is resolved server-side to the
-region it aggregates into; clients cannot post a region directly.
+Submit an anonymous report covering one or more allergens the user is reacting
+to, each at its own severity. The `placeId` is resolved server-side to the
+region it aggregates into; clients cannot post a region directly. One stored
+report row is created per allergen.
 
 **Request body**
 
-| Field      | Type   | Required | Notes |
-| ---------- | ------ | -------- | ----- |
-| `placeId`  | int    | yes      | from `/places/search` |
-| `allergen` | string | yes      | one of the allergen enum values |
-| `severity` | int    | yes      | 1–6 |
+| Field                | Type   | Required | Notes |
+| -------------------- | ------ | -------- | ----- |
+| `placeId`            | int    | yes      | from `/places/search` |
+| `reports`            | array  | yes      | 1–9 items; one per allergen, no duplicates |
+| `reports[].allergen` | string | yes      | an allergen enum value, or `unknown` |
+| `reports[].severity` | int    | yes      | 1–6 |
+
+To report symptoms without a known cause, include an item with
+`allergen: "unknown"` (from `/meta`'s `unknownAllergen`). It can stand alone or
+sit alongside named allergens.
 
 **Request**
 
 ```bash
 curl -X POST http://localhost:3000/reports \
   -H 'content-type: application/json' \
-  -d '{ "placeId": 104187, "allergen": "birch", "severity": 5 }'
+  -d '{
+    "placeId": 104187,
+    "reports": [
+      { "allergen": "birch", "severity": 5 },
+      { "allergen": "grass", "severity": 2 }
+    ]
+  }'
 ```
 
-**201**
+**201** — array of stored reports, one per allergen:
 
 ```json
-{
-  "id": 3,
-  "regionId": 2162,
-  "allergen": "birch",
-  "severity": 5,
-  "reportedOn": "2026-06-02",
-  "createdAt": "2026-06-02T19:35:35.354Z"
-}
+[
+  {
+    "id": 3,
+    "regionId": 2162,
+    "allergen": "birch",
+    "severity": 5,
+    "reportedOn": "2026-06-02",
+    "createdAt": "2026-06-02T19:35:35.354Z"
+  },
+  {
+    "id": 4,
+    "regionId": 2162,
+    "allergen": "grass",
+    "severity": 2,
+    "reportedOn": "2026-06-02",
+    "createdAt": "2026-06-02T19:35:35.354Z"
+  }
+]
 ```
 
 `regionId` is the resolved region (Kazan), not the place (Zelenodolsk).
 
 **Errors**
 
-- `400` — validation failed (see error format above).
+- `400` — validation failed: empty `reports`, an out-of-range severity, or a
+  duplicate allergen (see error format above).
 - `404` — `{ "error": "unknown place" }` when `placeId` does not exist.
 
 ---
