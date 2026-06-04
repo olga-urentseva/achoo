@@ -24,6 +24,13 @@ export const statusQuerySchema = z.object({
 
 export type StatusQuery = z.infer<typeof statusQuerySchema>;
 
+export const nearestQuerySchema = z.object({
+  lat: z.coerce.number().min(-90).max(90),
+  lng: z.coerce.number().min(-180).max(180),
+});
+
+export type NearestQuery = z.infer<typeof nearestQuerySchema>;
+
 export const trendsQuerySchema = z.object({
   allergen: z.enum(ALLERGENS).optional(),
   days: z.coerce.number().int().min(1).max(365).default(30),
