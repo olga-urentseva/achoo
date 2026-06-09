@@ -1,0 +1,17 @@
+{
+  "fagales":       { "label": "Birch & related trees",        "sort": 1 },
+  "poaceae":       { "label": "Grasses",                       "sort": 2 },
+  "cupressaceae":  { "label": "Cypress, cedar & juniper",      "sort": 3 },
+  "oleaceae":      { "label": "Olive, ash & related",          "sort": 4 },
+  "asteraceae":    { "label": "Ragweed, mugwort & related weeds", "sort": 5 },
+  "amaranthaceae": { "label": "Goosefoot & amaranth weeds",    "sort": 6 },
+  "platanaceae":   { "label": "Plane (sycamore)",              "sort": 7 },
+  "urticaceae":    { "label": "Pellitory",                     "sort": 8 },
+  "plantaginaceae":{ "label": "Plantain",                      "sort": 9 },
+  "arecaceae":     { "label": "Palm",                          "sort": 10 },
+  "fabaceae":      { "label": "Locust tree",                   "sort": 11 },
+  "brassicaceae":  { "label": "Rapeseed",                      "sort": 12 },
+  "solanaceae":    { "label": "Tobacco",                       "sort": 13 },
+  "euphorbiaceae": { "label": "Annual mercury",                "sort": 14 },
+  "unknown":       { "label": "Unknown / not sure",            "sort": 99 }
+}

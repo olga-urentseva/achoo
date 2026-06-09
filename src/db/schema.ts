@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   date,
   index,
@@ -14,38 +15,86 @@ import {
 } from "drizzle-orm/pg-core";
 
 /**
- * The selectable allergens — what users pick from and what `/meta` advertises.
+ * Sentinel family used when a user reports "I have symptoms but don't know
+ * which plant". It is a real aggregate bucket (so it counts toward a region's
+ * activity) but is not a botanical family and has no plants.
  */
-export const ALLERGENS = [
-  "birch",
-  "oak",
-  "alder",
-  "hazel",
-  "grass",
-  "mugwort",
-  "ragweed",
-  "olive",
-] as const;
+export const UNKNOWN_FAMILY = "unknown" as const;
+
+export const plantTypeEnum = pgEnum("plant_type", ["tree", "grass", "weed"]);
+export const proteinKindEnum = pgEnum("protein_kind", ["major", "panallergen"]);
+export const strengthEnum = pgEnum("strength", ["strong", "moderate", "weak"]);
 
 /**
- * Sentinel for "I have symptoms but don't know which allergen". Stored as a
- * real report so it counts toward a region's severity, but kept out of the
- * selectable list above so it never shows up as a pickable chip.
+ * Botanical/clinical families — the aggregation grain. Each plant belongs to
+ * exactly one "home" family (the dominant major-protein cluster), so a report
+ * counts once per distinct family among the picked plants. Seeded from
+ * `data/families.json`.
  */
-export const UNKNOWN_ALLERGEN = "unknown" as const;
-
-/** Every value a report's `allergen` column can hold (DB enum + validation). */
-export const REPORT_ALLERGENS = [...ALLERGENS, UNKNOWN_ALLERGEN] as const;
-
-export type Allergen = (typeof REPORT_ALLERGENS)[number];
-
-export const allergenEnum = pgEnum("allergen", REPORT_ALLERGENS);
+export const families = pgTable("families", {
+  id: text("id").primaryKey(),
+  label: text("label").notNull(),
+  sort: integer("sort").notNull(),
+});
 
 /**
- * Agglomerations — the aggregation units (anchors). Reports, daily
- * aggregates, and status colors all attach here. A small town's reports
- * roll up into its nearest metro (e.g. Zelenodolsk -> Kazan), so every
- * region is big enough to stay anonymous and statistically meaningful.
+ * Friendly picker groupings for species users can't tell apart (e.g. the eight
+ * grasses behind one "Grasses" chip). Purely a UI concern — distinct from the
+ * aggregation family. Seeded from `data/display-groups.json`.
+ */
+export const displayGroups = pgTable("display_groups", {
+  id: text("id").primaryKey(),
+  label: text("label").notNull(),
+  sort: integer("sort").notNull(),
+});
+
+/**
+ * The selectable plants — what users pick from. `featured` marks the headline
+ * chips; the rest live behind an "other" expander. Seeded from
+ * `data/plants.json`.
+ */
+export const plants = pgTable("plants", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  scientificName: text("scientific_name").notNull(),
+  type: plantTypeEnum("type").notNull(),
+  familyId: text("family_id")
+    .notNull()
+    .references(() => families.id),
+  featured: boolean("featured").notNull().default(false),
+  displayGroupId: text("display_group_id").references(() => displayGroups.id),
+});
+
+/**
+ * Allergenic proteins. `kind`/`strength` drive cross-reactivity predictions —
+ * panallergens (profilin, polcalcin) are broad but weak hints, never family
+ * merges. Seeded from `data/proteins.json`.
+ */
+export const proteins = pgTable("proteins", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  kind: proteinKindEnum("kind").notNull(),
+  strength: strengthEnum("strength").notNull(),
+});
+
+/** Which plant carries which protein (many-to-many). */
+export const plantProteins = pgTable(
+  "plant_proteins",
+  {
+    plantId: text("plant_id")
+      .notNull()
+      .references(() => plants.id),
+    proteinId: text("protein_id")
+      .notNull()
+      .references(() => proteins.id),
+  },
+  (t) => [primaryKey({ columns: [t.plantId, t.proteinId] })],
+);
+
+/**
+ * Agglomerations — the aggregation units (anchors). A small town's reports
+ * roll up into its nearest metro, so every region is big enough to stay
+ * anonymous and statistically meaningful.
  */
 export const regions = pgTable("regions", {
   id: serial("id").primaryKey(),
@@ -59,10 +108,8 @@ export const regions = pgTable("regions", {
 });
 
 /**
- * Searchable place index for the typeahead — worldwide, including small
- * towns. Each place points to the region it reports under. Seeded once
- * from the GeoNames-derived `all-the-cities` dataset; never queried at
- * write time beyond the lookup that resolves a chosen place to its region.
+ * Searchable place index for the typeahead — worldwide, including small towns.
+ * Each place points to the region it reports under.
  */
 export const places = pgTable(
   "places",
@@ -83,18 +130,21 @@ export const places = pgTable(
 );
 
 /**
- * Anonymous reports — the source of truth.
- * No identity, no IP, no session token reaches this table.
+ * Anonymous reports. Privacy-first: a submission stores ONLY the region, the
+ * single overall severity, and the date — never which plants/families the
+ * person picked. The picked plants are mapped to families and folded into
+ * `daily_aggregates` at write time, then discarded. This row exists only to
+ * compute the region's overall severity (one vote per person).
  */
-export const reports = pgTable(
-  "reports",
+export const submissions = pgTable(
+  "submissions",
   {
     id: serial("id").primaryKey(),
     regionId: integer("region_id")
       .notNull()
       .references(() => regions.id),
-    allergen: allergenEnum("allergen").notNull(),
     severity: integer("severity").notNull(),
+    unknown: boolean("unknown").notNull().default(false),
     reportedOn: date("reported_on", { mode: "string" })
       .notNull()
       .default(sql`CURRENT_DATE`),
@@ -104,13 +154,15 @@ export const reports = pgTable(
   },
   (t) => [
     check("severity_range", sql`${t.severity} between 1 and 6`),
-    index("reports_region_date_idx").on(t.regionId, t.reportedOn),
+    index("submissions_region_date_idx").on(t.regionId, t.reportedOn),
   ],
 );
 
 /**
- * Pre-computed per region / allergen / day rollup — the cache that keeps
- * trend and region-color queries fast as report volume grows.
+ * Per region / family / day rollup — the only place allergen signal lives at
+ * rest, fully anonymous. Stores `severity_sum` + `report_count` (not an
+ * average) so each report is a cheap atomic increment with nothing to
+ * recompute. `family_id` is a family id or the `unknown` sentinel.
  */
 export const dailyAggregates = pgTable(
   "daily_aggregates",
@@ -118,10 +170,10 @@ export const dailyAggregates = pgTable(
     regionId: integer("region_id")
       .notNull()
       .references(() => regions.id),
-    allergen: allergenEnum("allergen").notNull(),
+    familyId: text("family_id").notNull(),
     date: date("date", { mode: "string" }).notNull(),
-    avgSeverity: real("avg_severity").notNull(),
+    severitySum: integer("severity_sum").notNull(),
     reportCount: integer("report_count").notNull(),
   },
-  (t) => [primaryKey({ columns: [t.regionId, t.allergen, t.date] })],
+  (t) => [primaryKey({ columns: [t.regionId, t.familyId, t.date] })],
 );

@@ -1,37 +1,48 @@
 # achoo API reference
 
-Anonymous community allergy tracker. Users search their town, report severity
-(1–6) for an allergen, and read aggregated trends and status colors per region.
+Anonymous community allergy tracker. Users search their town, pick the plants
+they're allergic to, report one severity (1–6), and read aggregated trends and
+status colors per region.
 
 - **Base URL (dev):** `http://localhost:3000`
 - **Content type:** all request bodies and responses are JSON.
-- **No auth.** Reports are anonymous — only `severity`, `allergen`, `region`,
-  and `date` are stored. Once-per-day throttling is enforced client-side.
+- **No auth, privacy-first.** A report stores only the **region**, the single
+  **severity**, and the **date** — never which plants/families the user picked.
+  The picked plants are mapped to families and folded into the daily rollups at
+  write time, then discarded. Once-per-day throttling is enforced client-side.
 
 ## Core flow
 
 ```
-GET /meta                  load allergen list + severity scale
+GET /meta                  load plants + display groups + families + scale
 GET /places/search?q=…     user finds their town  ──▶ placeId, region.id
-POST /reports {placeId}    submit severity        (server resolves place → region)
-GET /regions/:id/trends    chart one region       (id = region.id)
-GET /regions/status        colors for the map
+POST /reports {placeId}    submit severity + picked plants (mapped to families, plants discarded)
+GET /regions/:id/families  per-family signal for one region ("people like you")
+GET /regions/:id/trends    chart one region over time
+GET /regions/status        overall colors for the map
 ```
 
 Two IDs are passed forward:
 
 - **`placeId`** — a specific town; used only to **submit**. The server rolls it
   up into the region it belongs to.
-- **`regionId`** (`region.id`) — the agglomeration/metro; used to **read**
-  trends. Found in a search result's `region.id` or a report's `regionId`.
+- **`regionId`** (`region.id`) — the agglomeration/metro; used to **read**.
 
 ## Conventions
+
+### The model: plants, families, proteins
+
+- **Plant** — what a user picks (e.g. `birch`, `timothy`). `GET /meta` lists them.
+- **Family** — the aggregation unit; each plant has exactly one home `family`
+  (e.g. birch and oak → `fagales`). Reports aggregate by family, counting each
+  person once per distinct family. This is what the per-family signal is keyed on.
+- **Protein** — drives cross-reactivity *predictions* (`GET /meta/cross-reactivity`).
+  A plant carries several proteins; panallergens are weak hints, not family merges.
 
 ### Reference values
 
 | Field      | Values |
 | ---------- | ------ |
-| `allergen` | `birch`, `oak`, `alder`, `hazel`, `grass`, `mugwort`, `ragweed`, `olive` |
 | `severity` | integer `1`–`6` |
 | `color`    | `green`, `yellow`, `red`, `purple` |
 
@@ -51,29 +62,11 @@ Color is derived from average severity (1–6 scale):
 | Status | When |
 | ------ | ---- |
 | `400`  | request validation failed (bad/missing field, out-of-range value) |
-| `404`  | referenced resource does not exist (e.g. unknown `placeId`) |
+| `404`  | referenced resource does not exist (e.g. unknown `placeId` or plant) |
 | `500`  | unexpected server error |
 
-Validation errors (`400`) return a Zod error object:
-
-```json
-{
-  "success": false,
-  "error": {
-    "name": "ZodError",
-    "issues": [
-      {
-        "code": "too_big",
-        "maximum": 6,
-        "path": ["severity"],
-        "message": "Number must be less than or equal to 6"
-      }
-    ]
-  }
-}
-```
-
-Resource errors (`404`/`500`) return `{ "error": "<message>" }`.
+Validation errors (`400`) return a Zod error object. Resource errors (`404`/
+`500`) return `{ "error": "<message>" }`.
 
 ---
 
@@ -83,90 +76,86 @@ Resource errors (`404`/`500`) return `{ "error": "<message>" }`.
 
 Liveness check (ops / Docker healthcheck). No product data.
 
-**200**
-
-```json
-{ "ok": true }
-```
+**200** — `{ "ok": true }`
 
 ---
 
 ### GET /meta
 
-Static metadata for building the report form. Safe to fetch once and cache.
+Metadata for building the report form. Safe to fetch once and cache.
 
 **200**
 
 ```json
 {
-  "allergens": ["birch", "oak", "alder", "hazel", "grass", "mugwort", "ragweed", "olive"],
-  "unknownAllergen": "unknown",
+  "plants": [
+    { "id": "birch", "name": "Birch", "scientificName": "Betula pendula", "type": "tree", "family": "fagales", "featured": true, "displayGroup": null },
+    { "id": "timothy", "name": "Timothy grass", "scientificName": "Phleum pratense", "type": "grass", "family": "poaceae", "featured": false, "displayGroup": "grasses" }
+  ],
+  "displayGroups": [
+    { "id": "grasses", "label": "Grasses" },
+    { "id": "cypress", "label": "Cypress & cedar" }
+  ],
+  "families": [
+    { "id": "fagales", "label": "Birch & related trees" },
+    { "id": "poaceae", "label": "Grasses" }
+  ],
   "severity": { "min": 1, "max": 6 },
   "colors": ["green", "yellow", "red", "purple"]
 }
 ```
 
-`unknownAllergen` is the sentinel a user submits when they have symptoms but
-don't know the cause. It's deliberately **not** in `allergens`, so it never
-renders as a selectable chip — submit it on its own (see `POST /reports`).
+| Field                 | Notes |
+| --------------------- | ----- |
+| `plants[].featured`   | headline chips; the rest live behind an "other" expander |
+| `plants[].displayGroup` | if set, the plant sits behind a friendly group chip (e.g. all grasses behind "Grasses") instead of its own chip |
+| `plants[].family`     | the plant's home family — lets the client match a user's saved plants to families **locally**, without sending them to the server |
+| `families`            | id → label, for showing "people who share your &lt;family&gt;" |
+
+> The server has no `unknown` plant. To report symptoms without a known cause,
+> send `unknown: true` to `POST /reports` (see below).
 
 ---
 
 ### GET /meta/cross-reactivity
 
-Public pollen cross-reactivity map: which allergens share a protein family, so
-a sensitivity to one often comes with the others. Static reference data, safe
-to fetch once and cache.
+Public cross-reactivity map, built from the proteins and the plants that carry
+them: sharing a protein means a sensitivity to one often comes with the others.
+Safe to fetch once and cache.
 
-This carries **no personal data**. The client pairs it with the user's own
-allergen list — which lives only in their browser's `localStorage`, never on
-the server — to suggest allergens they may also react to. Recommendations are
-computed on-device; the server never sees a user's allergen profile.
+This carries **no personal data**. The client pairs it with the user's own plant
+list — which lives only in their browser's `localStorage` — to suggest plants
+they may also react to. Recommendations are computed on-device.
 
 **200** — array of protein groups:
 
 ```json
 [
-  {
-    "protein": "Bet v 1 (PR-10)",
-    "family": "Fagales tree pollen",
-    "strength": "strong",
-    "allergens": ["birch", "alder", "hazel", "oak"]
-  },
-  {
-    "protein": "Artemisia / Ambrosia weed group",
-    "family": "Weed pollen",
-    "strength": "moderate",
-    "allergens": ["mugwort", "ragweed"]
-  },
-  {
-    "protein": "Profilin",
-    "family": "Panallergen (broad, usually mild)",
-    "strength": "weak",
-    "allergens": ["birch", "grass", "mugwort", "ragweed", "olive"]
-  }
+  { "protein": "PR-10", "name": "Bet v 1 family (PR-10-like)", "kind": "major", "strength": "strong", "plants": ["birch", "alder", "hazel", "hornbeam", "hop-hornbeam", "beech", "oak", "chestnut"] },
+  { "protein": "profilin", "name": "Profilin (Bet v 2 family)", "kind": "panallergen", "strength": "weak", "plants": ["birch", "timothy", "mugwort", "ragweed", "olive"] }
 ]
 ```
 
-| Field       | Type     | Notes |
-| ----------- | -------- | ----- |
-| `protein`   | string   | the shared molecule that explains the cross-reactivity |
-| `family`    | string   | human-readable family label (for showing the user "why") |
-| `strength`  | string   | `strong` / `moderate` / `weak` — how strongly the protein drives cross-reactivity; rank or filter suggestions by this |
-| `allergens` | string[] | members of the group; each is one of the allergen enum values |
+| Field      | Type     | Notes |
+| ---------- | -------- | ----- |
+| `protein`  | string   | protein id |
+| `name`     | string   | human-readable protein/family name |
+| `kind`     | string   | `major` (species-specific) or `panallergen` (broad, usually weak) |
+| `strength` | string   | `strong` / `moderate` / `weak` — rank suggestions by this |
+| `plants`   | string[] | plant ids that carry this protein |
 
-> **Client recipe:** for each allergen in the user's local list, find the
-> groups containing it and suggest the *other* members, ranked by `strength`.
-> Treat `weak` (profilin) links as hints, not strong predictions. Pair with a
-> "not medical advice" disclaimer.
+> **Client recipe:** for each plant in the user's local list, find the groups
+> containing it and suggest the *other* members, ranked by `strength`. Treat
+> `weak`/`panallergen` links as hints, not predictions. Add a "not medical
+> advice" disclaimer.
 
 ---
 
 ### GET /places/search
 
 Typeahead over the worldwide place index. Prefix match on the place name,
-ordered by population (largest first). Each result carries the region it
-reports under, so the UI can show e.g. "Zelenodolsk → reporting under Kazan".
+ordered by population (largest first). Each result carries the region it reports
+under.
 
 **Query parameters**
 
@@ -174,12 +163,6 @@ reports under, so the UI can show e.g. "Zelenodolsk → reporting under Kazan".
 | ------- | ------ | -------- | ------- | ----- |
 | `q`     | string | yes      | —       | 1–80 chars; prefix match (`zelen` matches `Zelenodolsk`) |
 | `limit` | int    | no       | `10`    | 1–20 |
-
-**Request**
-
-```bash
-curl "http://localhost:3000/places/search?q=zelen&limit=3"
-```
 
 **200**
 
@@ -191,155 +174,139 @@ curl "http://localhost:3000/places/search?q=zelen&limit=3"
     "admin1": "Tatarstan Republic",
     "country": "Russia",
     "population": 99600,
-    "region": {
-      "id": 2162,
-      "name": "Kazan",
-      "admin1": "Tatarstan Republic",
-      "country": "Russia"
-    }
+    "region": { "id": 2162, "name": "Kazan", "admin1": "Tatarstan Republic", "country": "Russia" }
   }
 ]
 ```
 
-| Field         | Type   | Notes |
-| ------------- | ------ | ----- |
-| `placeId`     | int    | pass to `POST /reports` |
-| `name`        | string | place name |
-| `admin1`      | string | full region/state name (e.g. `Texas`), may be empty |
-| `country`     | string | full country name (e.g. `United States`) |
-| `population`  | int    | |
-| `region.id`   | int    | the region it reports under; pass to `/regions/:id/trends` |
-| `region.*`    |        | region's name / admin1 / country |
-
-> **Note:** search is prefix-only. `lenodolsk` (mid-word) or typos like `kazn`
-> return no results.
+`placeId` → `POST /reports`; `region.id` → `/regions/:id/*`. Search is
+prefix-only (`lenodolsk` mid-word or typos return nothing).
 
 ---
 
 ### POST /reports
 
-Submit an anonymous report covering one or more allergens the user is reacting
-to, each at its own severity. The `placeId` is resolved server-side to the
-region it aggregates into; clients cannot post a region directly. One stored
-report row is created per allergen.
+Submit one anonymous report: a single overall severity plus the plants the user
+is allergic to. The `placeId` is resolved server-side to its region; the plants
+are mapped to their families and folded into the rollups, then **discarded** —
+nothing per-person is stored.
 
 **Request body**
 
-| Field                | Type   | Required | Notes |
-| -------------------- | ------ | -------- | ----- |
-| `placeId`            | int    | yes      | from `/places/search` |
-| `reports`            | array  | yes      | 1–9 items; one per allergen, no duplicates |
-| `reports[].allergen` | string | yes      | an allergen enum value, or `unknown` |
-| `reports[].severity` | int    | yes      | 1–6 |
-
-To report symptoms without a known cause, include an item with
-`allergen: "unknown"` (from `/meta`'s `unknownAllergen`). It can stand alone or
-sit alongside named allergens.
+| Field      | Type     | Required | Notes |
+| ---------- | -------- | -------- | ----- |
+| `placeId`  | int      | yes      | from `/places/search` |
+| `severity` | int      | yes      | 1–6, one value for the whole submission |
+| `plants`   | string[] | yes\*    | plant ids from `/meta`; \*required unless `unknown` is set |
+| `unknown`  | bool     | no       | `true` = "symptoms, cause unknown"; counts toward the `unknown` family |
 
 **Request**
 
 ```bash
 curl -X POST http://localhost:3000/reports \
   -H 'content-type: application/json' \
-  -d '{
-    "placeId": 104187,
-    "reports": [
-      { "allergen": "birch", "severity": 5 },
-      { "allergen": "grass", "severity": 2 }
-    ]
-  }'
+  -d '{ "placeId": 104187, "severity": 5, "plants": ["birch", "oak"] }'
 ```
 
-**201** — array of stored reports, one per allergen:
+**201** — the stored submission (no allergen fields):
 
 ```json
-[
-  {
-    "id": 3,
-    "regionId": 2162,
-    "allergen": "birch",
-    "severity": 5,
-    "reportedOn": "2026-06-02",
-    "createdAt": "2026-06-02T19:35:35.354Z"
-  },
-  {
-    "id": 4,
-    "regionId": 2162,
-    "allergen": "grass",
-    "severity": 2,
-    "reportedOn": "2026-06-02",
-    "createdAt": "2026-06-02T19:35:35.354Z"
-  }
-]
+{
+  "id": 3,
+  "regionId": 2162,
+  "severity": 5,
+  "unknown": false,
+  "reportedOn": "2026-06-08",
+  "createdAt": "2026-06-08T19:35:35.354Z"
+}
 ```
 
-`regionId` is the resolved region (Kazan), not the place (Zelenodolsk).
+`regionId` is the resolved region (Kazan). `birch`/`oak` are **not** in the
+response or the database — they only determined which family buckets
+(`fagales`) were incremented.
 
 **Errors**
 
-- `400` — validation failed: empty `reports`, an out-of-range severity, or a
-  duplicate allergen (see error format above).
-- `404` — `{ "error": "unknown place" }` when `placeId` does not exist.
+- `400` — validation failed: bad severity, or empty `plants` without `unknown`.
+- `404` — `{ "error": "unknown place" }` or `{ "error": "unknown plant" }`.
+
+---
+
+### GET /regions/:id/families
+
+Per-family signal for one region on a day — the data behind *"people who share
+your &lt;family&gt; report X/6 today."* Families with fewer than the suppression
+floor (`MIN_REPORTS`, currently 3) are **omitted** (k-anonymity + statistical
+floor).
+
+The client maps the user's saved plants → families locally (via `/meta`) and
+shows the matching families from this response.
+
+**Path:** `id` — a `region.id`. **Query:** `date` (optional, `YYYY-MM-DD`, default today).
+
+**Request**
+
+```bash
+curl "http://localhost:3000/regions/2162/families?date=2026-06-08"
+```
+
+**200** — array, ordered by family:
+
+```json
+[
+  { "family": "fagales", "label": "Birch & related trees", "avgSeverity": 4.5, "reportCount": 6, "color": "red" },
+  { "family": "poaceae", "label": "Grasses", "avgSeverity": 2.0, "reportCount": 4, "color": "yellow" }
+]
+```
+
+**Errors:** `400` — `{ "error": "invalid region id" }`.
 
 ---
 
 ### GET /regions/:id/trends
 
-Daily severity trend for one region, read from the pre-computed aggregates —
-for charting a month/year of history. Without `allergen`, all allergens are
-combined via a count-weighted average.
+Daily severity trend for one region. With `family`, reads that family's rollup.
+Without it, the overall trend is computed from submissions (one vote per report).
 
-**Path parameters**
-
-| Name | Type | Notes |
-| ---- | ---- | ----- |
-| `id` | int  | a `region.id` (positive integer) |
+**Path:** `id` — a `region.id`.
 
 **Query parameters**
 
-| Name       | Type   | Required | Default | Notes |
-| ---------- | ------ | -------- | ------- | ----- |
-| `allergen` | string | no       | all     | filter to one allergen |
-| `days`     | int    | no       | `30`    | 1–365; window ending today |
+| Name     | Type   | Required | Default | Notes |
+| -------- | ------ | -------- | ------- | ----- |
+| `family` | string | no       | all     | filter to one family id (e.g. `fagales`) |
+| `days`   | int    | no       | `30`    | 1–365; window ending today |
 
 **Request**
 
 ```bash
-curl "http://localhost:3000/regions/2162/trends?allergen=birch&days=7"
+curl "http://localhost:3000/regions/2162/trends?family=fagales&days=7"
 ```
 
 **200** — array of daily points, oldest first:
 
 ```json
 [
-  { "date": "2026-06-02", "avgSeverity": 5.33, "reportCount": 3, "color": "purple" }
+  { "date": "2026-06-08", "avgSeverity": 4.5, "reportCount": 6, "color": "red" }
 ]
 ```
 
-**Errors**
-
-- `400` — `{ "error": "invalid region id" }` when `id` is not a positive integer.
+**Errors:** `400` — `{ "error": "invalid region id" }`.
 
 ---
 
 ### GET /regions/status
 
-Current status color for every region that has reports on a given day — the
-data behind the **home-page world map** and "don't go outside" overview. Each
-item includes `lat`/`lng` so the client can plot a colored dot directly.
-Regions with no reports that day are omitted.
+Overall status color for every region that has reports on a given day — the data
+behind the **home-page world map**. One vote per report (no fan-out inflation).
+Each item includes `lat`/`lng` for plotting a colored dot. Regions with no
+reports that day are omitted.
 
 **Query parameters**
 
 | Name   | Type   | Required | Default | Notes |
 | ------ | ------ | -------- | ------- | ----- |
 | `date` | string | no       | today   | `YYYY-MM-DD` |
-
-**Request**
-
-```bash
-curl "http://localhost:3000/regions/status?date=2026-06-02"
-```
 
 **200**
 
@@ -352,25 +319,12 @@ curl "http://localhost:3000/regions/status?date=2026-06-02"
     "country": "Russia",
     "lat": 55.78874,
     "lng": 49.12214,
-    "date": "2026-06-02",
+    "date": "2026-06-08",
     "reportCount": 3,
-    "avgSeverity": 5.33,
-    "color": "purple"
+    "avgSeverity": 4.33,
+    "color": "red"
   }
 ]
 ```
 
-| Field         | Type   | Notes |
-| ------------- | ------ | ----- |
-| `regionId`    | int    | region id |
-| `name`        | string | region (metro) name |
-| `admin1`      | string | full region/state name |
-| `country`     | string | full country name |
-| `lat` / `lng` | float  | dot position for the map |
-| `reportCount` | int    | reports that day |
-| `avgSeverity` | float  | average severity (round for display) |
-| `color`       | string | dot color (`green`/`yellow`/`red`/`purple`) |
-
-**Errors**
-
-- `400` — validation failed when `date` is not a valid `YYYY-MM-DD`.
+**Errors:** `400` — validation failed when `date` is not a valid `YYYY-MM-DD`.

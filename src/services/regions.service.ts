@@ -1,13 +1,12 @@
 import { and, eq, gte, sql } from "drizzle-orm";
 import { db } from "../db/index.js";
-import {
-  dailyAggregates,
-  regions,
-  reports,
-  type Allergen,
-} from "../db/schema.js";
+import { dailyAggregates, families, regions, submissions } from "../db/schema.js";
 import { isoDate } from "../lib/dates.js";
-import { severityColor, type SeverityColor } from "../lib/severity.js";
+import {
+  MIN_REPORTS,
+  severityColor,
+  type SeverityColor,
+} from "../lib/severity.js";
 
 export interface RegionStatus {
   regionId: number;
@@ -23,9 +22,9 @@ export interface RegionStatus {
 }
 
 /**
- * Status color for every region with reports on `date` (default today),
- * including coordinates so the client can plot a dot per region on the map.
- * Regions with no reports that day are omitted.
+ * Overall status color for every region with reports on `date` (default today).
+ * One vote per report (each submission carries a single severity), so no
+ * fan-out inflation. Regions with no reports that day are omitted.
  */
 export async function getRegionStatus(date?: string): Promise<RegionStatus[]> {
   const day = date ?? isoDate();
@@ -38,12 +37,12 @@ export async function getRegionStatus(date?: string): Promise<RegionStatus[]> {
       country: regions.country,
       lat: regions.lat,
       lng: regions.lng,
-      avg: sql<string>`avg(${reports.severity})`,
-      count: sql<string>`count(${reports.id})`,
+      avg: sql<string>`avg(${submissions.severity})`,
+      count: sql<string>`count(${submissions.id})`,
     })
-    .from(reports)
-    .innerJoin(regions, eq(reports.regionId, regions.id))
-    .where(eq(reports.reportedOn, day))
+    .from(submissions)
+    .innerJoin(regions, eq(submissions.regionId, regions.id))
+    .where(eq(submissions.reportedOn, day))
     .groupBy(regions.id)
     .orderBy(regions.name);
 
@@ -64,6 +63,56 @@ export async function getRegionStatus(date?: string): Promise<RegionStatus[]> {
   });
 }
 
+export interface RegionFamily {
+  family: string;
+  label: string | null;
+  avgSeverity: number;
+  reportCount: number;
+  color: SeverityColor | null;
+}
+
+/**
+ * Per-family signal for one region on `date` (default today). This is what the
+ * frontend reads to tell a user "people who share your <family> report X/6
+ * today". Families with fewer than `MIN_REPORTS` reports are suppressed —
+ * k-anonymity plus a statistical floor.
+ */
+export async function getRegionFamilies(
+  regionId: number,
+  date?: string,
+): Promise<RegionFamily[]> {
+  const day = date ?? isoDate();
+
+  const rows = await db
+    .select({
+      family: dailyAggregates.familyId,
+      label: families.label,
+      sum: dailyAggregates.severitySum,
+      count: dailyAggregates.reportCount,
+    })
+    .from(dailyAggregates)
+    .leftJoin(families, eq(dailyAggregates.familyId, families.id))
+    .where(
+      and(
+        eq(dailyAggregates.regionId, regionId),
+        eq(dailyAggregates.date, day),
+        gte(dailyAggregates.reportCount, MIN_REPORTS),
+      ),
+    )
+    .orderBy(families.sort);
+
+  return rows.map((r) => {
+    const avg = r.sum / r.count;
+    return {
+      family: r.family,
+      label: r.label,
+      avgSeverity: avg,
+      reportCount: r.count,
+      color: severityColor(avg),
+    };
+  });
+}
+
 export interface TrendPoint {
   date: string;
   avgSeverity: number;
@@ -72,47 +121,58 @@ export interface TrendPoint {
 }
 
 /**
- * Daily severity trend for one region from the pre-computed aggregates.
- * Without `allergen`, all allergens are combined via a count-weighted average.
+ * Daily severity trend for one region. With a `family`, reads the pre-computed
+ * family rollup. Without one, the overall trend is computed from `submissions`
+ * (one vote per report) so polysensitized people aren't double-counted across
+ * families.
  */
 export async function getRegionTrends(
   regionId: number,
-  allergen: Allergen | undefined,
+  family: string | undefined,
   days: number,
 ): Promise<TrendPoint[]> {
   const since = isoDate(days);
 
-  const rows = allergen
-    ? await db
-        .select({
-          date: dailyAggregates.date,
-          avg: dailyAggregates.avgSeverity,
-          count: dailyAggregates.reportCount,
-        })
-        .from(dailyAggregates)
-        .where(
-          and(
-            eq(dailyAggregates.regionId, regionId),
-            eq(dailyAggregates.allergen, allergen),
-            gte(dailyAggregates.date, since),
-          ),
-        )
-        .orderBy(dailyAggregates.date)
-    : await db
-        .select({
-          date: dailyAggregates.date,
-          avg: sql<string>`sum(${dailyAggregates.avgSeverity} * ${dailyAggregates.reportCount}) / sum(${dailyAggregates.reportCount})`,
-          count: sql<string>`sum(${dailyAggregates.reportCount})`,
-        })
-        .from(dailyAggregates)
-        .where(
-          and(
-            eq(dailyAggregates.regionId, regionId),
-            gte(dailyAggregates.date, since),
-          ),
-        )
-        .groupBy(dailyAggregates.date)
-        .orderBy(dailyAggregates.date);
+  if (family) {
+    const rows = await db
+      .select({
+        date: dailyAggregates.date,
+        sum: dailyAggregates.severitySum,
+        count: dailyAggregates.reportCount,
+      })
+      .from(dailyAggregates)
+      .where(
+        and(
+          eq(dailyAggregates.regionId, regionId),
+          eq(dailyAggregates.familyId, family),
+          gte(dailyAggregates.date, since),
+        ),
+      )
+      .orderBy(dailyAggregates.date);
+
+    return rows.map((r) => {
+      const avg = r.sum / r.count;
+      return {
+        date: r.date,
+        avgSeverity: avg,
+        reportCount: r.count,
+        color: severityColor(avg),
+      };
+    });
+  }
+
+  const rows = await db
+    .select({
+      date: submissions.reportedOn,
+      avg: sql<string>`avg(${submissions.severity})`,
+      count: sql<string>`count(${submissions.id})`,
+    })
+    .from(submissions)
+    .where(
+      and(eq(submissions.regionId, regionId), gte(submissions.reportedOn, since)),
+    )
+    .groupBy(submissions.reportedOn)
+    .orderBy(submissions.reportedOn);
 
   return rows.map((r) => {
     const avg = Number(r.avg);

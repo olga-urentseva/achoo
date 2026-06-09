@@ -1,0 +1,191 @@
+{
+  "PR-10": {
+    "name": "Bet v 1 family (PR-10-like)",
+    "kind": "major",
+    "strength": "strong",
+    "plants": [
+      "birch",
+      "alder",
+      "hazel",
+      "hornbeam",
+      "hop-hornbeam",
+      "beech",
+      "oak",
+      "chestnut"
+    ]
+  },
+  "profilin": {
+    "name": "Profilin (Bet v 2 family)",
+    "kind": "panallergen",
+    "strength": "weak",
+    "plants": [
+      "birch",
+      "alder",
+      "hazel",
+      "hornbeam",
+      "oak",
+      "beech",
+      "timothy",
+      "orchard-grass",
+      "ryegrass",
+      "kentucky-bluegrass",
+      "sweet-vernal-grass",
+      "bermuda-grass",
+      "bahia-grass",
+      "johnson-grass",
+      "mugwort",
+      "ragweed",
+      "pellitory",
+      "sunflower",
+      "goosefoot",
+      "russian-thistle",
+      "amaranth",
+      "annual-mercury",
+      "olive",
+      "ash",
+      "cypress",
+      "date-palm"
+    ]
+  },
+  "polcalcin": {
+    "name": "Polcalcin (2 EF-hand pollen Ca-binding)",
+    "kind": "panallergen",
+    "strength": "weak",
+    "plants": [
+      "timothy",
+      "orchard-grass",
+      "ryegrass",
+      "kentucky-bluegrass",
+      "bermuda-grass",
+      "birch",
+      "alder",
+      "hornbeam",
+      "beech",
+      "oak",
+      "ragweed",
+      "mugwort",
+      "rapeseed",
+      "goosefoot",
+      "arizona-cypress",
+      "japanese-cedar",
+      "prickly-juniper",
+      "ash",
+      "olive",
+      "lilac",
+      "tobacco",
+      "pellitory",
+      "locust-tree"
+    ]
+  },
+  "nsLTP-pollen": {
+    "name": "nsLTP pollen (Par j / Ole e / Art v / Pla a)",
+    "kind": "panallergen",
+    "strength": "weak",
+    "plants": [
+      "pellitory",
+      "ragweed",
+      "mugwort",
+      "olive",
+      "plane",
+      "oriental-plane"
+    ]
+  },
+  "ole-e-1-like-oleaceae": {
+    "name": "Ole e 1-like (Oleaceae)",
+    "kind": "major",
+    "strength": "strong",
+    "plants": [
+      "olive",
+      "ash",
+      "privet",
+      "lilac"
+    ]
+  },
+  "ole-e-1-like-amaranthaceae": {
+    "name": "Ole e 1-like (Che a 1 / Sal k 5)",
+    "kind": "major",
+    "strength": "moderate",
+    "plants": [
+      "goosefoot",
+      "russian-thistle"
+    ]
+  },
+  "ole-e-1-like-other": {
+    "name": "Ole e 1-like (plantain / grass)",
+    "kind": "major",
+    "strength": "weak",
+    "plants": [
+      "english-plantain",
+      "timothy",
+      "ryegrass"
+    ]
+  },
+  "pectate-lyase-cupressaceae": {
+    "name": "Pectate lyase (Cupressaceae)",
+    "kind": "major",
+    "strength": "strong",
+    "plants": [
+      "cypress",
+      "arizona-cypress",
+      "japanese-cedar",
+      "japanese-cypress",
+      "mountain-cedar",
+      "eastern-red-cedar",
+      "prickly-juniper"
+    ]
+  },
+  "pectate-lyase-asteraceae": {
+    "name": "Pectate lyase (ragweed/mugwort)",
+    "kind": "major",
+    "strength": "moderate",
+    "plants": [
+      "ragweed",
+      "mugwort"
+    ]
+  },
+  "defensin-like": {
+    "name": "Defensin-like protein (Asteraceae weeds)",
+    "kind": "major",
+    "strength": "moderate",
+    "plants": [
+      "mugwort",
+      "ragweed",
+      "feverfew",
+      "sunflower"
+    ]
+  },
+  "grass-group-1": {
+    "name": "Grass group 1 beta-expansin (temperate Pooideae)",
+    "kind": "major",
+    "strength": "strong",
+    "plants": [
+      "timothy",
+      "ryegrass",
+      "orchard-grass",
+      "kentucky-bluegrass",
+      "sweet-vernal-grass"
+    ]
+  },
+  "grass-group-1-subtropical": {
+    "name": "Grass group 1 beta-expansin (subtropical)",
+    "kind": "major",
+    "strength": "moderate",
+    "plants": [
+      "bermuda-grass",
+      "bahia-grass",
+      "johnson-grass"
+    ]
+  },
+  "grass-group-5": {
+    "name": "Grass group 5 ribonuclease (temperate Pooideae)",
+    "kind": "major",
+    "strength": "strong",
+    "plants": [
+      "timothy",
+      "ryegrass",
+      "orchard-grass",
+      "kentucky-bluegrass",
+      "sweet-vernal-grass"
+    ]
+  }
+}

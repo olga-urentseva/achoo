@@ -1,5 +1,5 @@
 {
-  "id": "8131aa6a-f718-49af-9e8b-33906294db4c",
+  "id": "9701b7bc-540e-44ca-9f4d-5830d89af14c",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -14,10 +14,9 @@
           "primaryKey": false,
           "notNull": true
         },
-        "allergen": {
-          "name": "allergen",
-          "type": "allergen",
-          "typeSchema": "public",
+        "family_id": {
+          "name": "family_id",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -27,9 +26,9 @@
           "primaryKey": false,
           "notNull": true
         },
-        "avg_severity": {
-          "name": "avg_severity",
-          "type": "real",
+        "severity_sum": {
+          "name": "severity_sum",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
@@ -57,15 +56,77 @@
         }
       },
       "compositePrimaryKeys": {
-        "daily_aggregates_region_id_allergen_date_pk": {
-          "name": "daily_aggregates_region_id_allergen_date_pk",
+        "daily_aggregates_region_id_family_id_date_pk": {
+          "name": "daily_aggregates_region_id_family_id_date_pk",
           "columns": [
             "region_id",
-            "allergen",
+            "family_id",
             "date"
           ]
         }
       },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.display_groups": {
+      "name": "display_groups",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sort": {
+          "name": "sort",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.families": {
+      "name": "families",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sort": {
+          "name": "sort",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
@@ -177,6 +238,189 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.plant_proteins": {
+      "name": "plant_proteins",
+      "schema": "",
+      "columns": {
+        "plant_id": {
+          "name": "plant_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "protein_id": {
+          "name": "protein_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "plant_proteins_plant_id_plants_id_fk": {
+          "name": "plant_proteins_plant_id_plants_id_fk",
+          "tableFrom": "plant_proteins",
+          "tableTo": "plants",
+          "columnsFrom": [
+            "plant_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "plant_proteins_protein_id_proteins_id_fk": {
+          "name": "plant_proteins_protein_id_proteins_id_fk",
+          "tableFrom": "plant_proteins",
+          "tableTo": "proteins",
+          "columnsFrom": [
+            "protein_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "plant_proteins_plant_id_protein_id_pk": {
+          "name": "plant_proteins_plant_id_protein_id_pk",
+          "columns": [
+            "plant_id",
+            "protein_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.plants": {
+      "name": "plants",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scientific_name": {
+          "name": "scientific_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "plant_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "family_id": {
+          "name": "family_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "featured": {
+          "name": "featured",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "display_group_id": {
+          "name": "display_group_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "plants_family_id_families_id_fk": {
+          "name": "plants_family_id_families_id_fk",
+          "tableFrom": "plants",
+          "tableTo": "families",
+          "columnsFrom": [
+            "family_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "plants_display_group_id_display_groups_id_fk": {
+          "name": "plants_display_group_id_display_groups_id_fk",
+          "tableFrom": "plants",
+          "tableTo": "display_groups",
+          "columnsFrom": [
+            "display_group_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.proteins": {
+      "name": "proteins",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "protein_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "strength": {
+          "name": "strength",
+          "type": "strength",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.regions": {
       "name": "regions",
       "schema": "",
@@ -247,8 +491,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.reports": {
-      "name": "reports",
+    "public.submissions": {
+      "name": "submissions",
       "schema": "",
       "columns": {
         "id": {
@@ -263,18 +507,18 @@
           "primaryKey": false,
           "notNull": true
         },
-        "allergen": {
-          "name": "allergen",
-          "type": "allergen",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
         "severity": {
           "name": "severity",
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "unknown": {
+          "name": "unknown",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "reported_on": {
           "name": "reported_on",
@@ -292,8 +536,8 @@
         }
       },
       "indexes": {
-        "reports_region_date_idx": {
-          "name": "reports_region_date_idx",
+        "submissions_region_date_idx": {
+          "name": "submissions_region_date_idx",
           "columns": [
             {
               "expression": "region_id",
@@ -315,9 +559,9 @@
         }
       },
       "foreignKeys": {
-        "reports_region_id_regions_id_fk": {
-          "name": "reports_region_id_regions_id_fk",
-          "tableFrom": "reports",
+        "submissions_region_id_regions_id_fk": {
+          "name": "submissions_region_id_regions_id_fk",
+          "tableFrom": "submissions",
           "tableTo": "regions",
           "columnsFrom": [
             "region_id"
@@ -335,25 +579,37 @@
       "checkConstraints": {
         "severity_range": {
           "name": "severity_range",
-          "value": "\"reports\".\"severity\" between 1 and 6"
+          "value": "\"submissions\".\"severity\" between 1 and 6"
         }
       },
       "isRLSEnabled": false
     }
   },
   "enums": {
-    "public.allergen": {
-      "name": "allergen",
+    "public.plant_type": {
+      "name": "plant_type",
       "schema": "public",
       "values": [
-        "birch",
-        "oak",
-        "alder",
-        "hazel",
+        "tree",
         "grass",
-        "mugwort",
-        "ragweed",
-        "olive"
+        "weed"
+      ]
+    },
+    "public.protein_kind": {
+      "name": "protein_kind",
+      "schema": "public",
+      "values": [
+        "major",
+        "panallergen"
+      ]
+    },
+    "public.strength": {
+      "name": "strength",
+      "schema": "public",
+      "values": [
+        "strong",
+        "moderate",
+        "weak"
       ]
     }
   },

@@ -1,6 +1,7 @@
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import {
+  getRegionFamilies,
   getRegionStatus,
   getRegionTrends,
 } from "../controllers/regions.controller.js";
@@ -12,6 +13,12 @@ regionsRoutes.get(
   "/status",
   zValidator("query", statusQuerySchema),
   getRegionStatus,
+);
+
+regionsRoutes.get(
+  "/:id/families",
+  zValidator("query", statusQuerySchema),
+  getRegionFamilies,
 );
 
 regionsRoutes.get(

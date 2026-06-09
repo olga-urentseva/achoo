@@ -3,17 +3,28 @@ import { validated } from "../lib/validated.js";
 import type { StatusQuery, TrendsQuery } from "../schemas.js";
 import * as regionsService from "../services/regions.service.js";
 
+function regionId(c: Context): number | null {
+  const id = Number(c.req.param("id"));
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
 export async function getRegionStatus(c: Context) {
   const { date } = validated<StatusQuery>(c, "query");
   return c.json(await regionsService.getRegionStatus(date));
 }
 
-export async function getRegionTrends(c: Context) {
-  const id = Number(c.req.param("id"));
-  if (!Number.isInteger(id) || id <= 0) {
-    return c.json({ error: "invalid region id" }, 400);
-  }
+export async function getRegionFamilies(c: Context) {
+  const id = regionId(c);
+  if (id === null) return c.json({ error: "invalid region id" }, 400);
 
-  const { allergen, days } = validated<TrendsQuery>(c, "query");
-  return c.json(await regionsService.getRegionTrends(id, allergen, days));
+  const { date } = validated<StatusQuery>(c, "query");
+  return c.json(await regionsService.getRegionFamilies(id, date));
+}
+
+export async function getRegionTrends(c: Context) {
+  const id = regionId(c);
+  if (id === null) return c.json({ error: "invalid region id" }, 400);
+
+  const { family, days } = validated<TrendsQuery>(c, "query");
+  return c.json(await regionsService.getRegionTrends(id, family, days));
 }
