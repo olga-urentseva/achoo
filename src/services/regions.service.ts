@@ -1,12 +1,22 @@
-import { and, eq, gte, sql } from "drizzle-orm";
+import { and, eq, gte, lte, sql } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { dailyAggregates, families, regions, submissions } from "../db/schema.js";
 import { isoDate } from "../lib/dates.js";
 import {
+  WINDOW_DAYS,
   MIN_REPORTS,
   severityColor,
   type SeverityColor,
 } from "../lib/severity.js";
+
+/** The `WINDOW_DAYS`-long date range ending on `date` (default today), as
+ * `YYYY-MM-DD` bounds. Shared by the map and the per-family signal. */
+function windowRange(date?: string): { since: string; end: string } {
+  const end = date ?? isoDate();
+  const start = new Date(`${end}T00:00:00.000Z`);
+  start.setUTCDate(start.getUTCDate() - (WINDOW_DAYS - 1));
+  return { since: start.toISOString().slice(0, 10), end };
+}
 
 export interface RegionStatus {
   regionId: number;
@@ -22,12 +32,13 @@ export interface RegionStatus {
 }
 
 /**
- * Overall status color for every region with reports on `date` (default today).
- * One vote per report (each submission carries a single severity), so no
- * fan-out inflation. Regions with no reports that day are omitted.
+ * Overall status color for every region with reports over the rolling
+ * `WINDOW_DAYS` window ending on `date` (default today). One vote per report
+ * (each submission carries a single severity), so no fan-out inflation. Regions
+ * with no reports in the window are omitted.
  */
 export async function getRegionStatus(date?: string): Promise<RegionStatus[]> {
-  const day = date ?? isoDate();
+  const { since, end } = windowRange(date);
 
   const rows = await db
     .select({
@@ -42,7 +53,12 @@ export async function getRegionStatus(date?: string): Promise<RegionStatus[]> {
     })
     .from(submissions)
     .innerJoin(regions, eq(submissions.regionId, regions.id))
-    .where(eq(submissions.reportedOn, day))
+    .where(
+      and(
+        gte(submissions.reportedOn, since),
+        lte(submissions.reportedOn, end),
+      ),
+    )
     .groupBy(regions.id)
     .orderBy(regions.name);
 
@@ -55,7 +71,7 @@ export async function getRegionStatus(date?: string): Promise<RegionStatus[]> {
       country: r.country,
       lat: r.lat,
       lng: r.lng,
-      date: day,
+      date: end,
       reportCount: Number(r.count),
       avgSeverity: avg,
       color: severityColor(avg),
@@ -72,42 +88,48 @@ export interface RegionFamily {
 }
 
 /**
- * Per-family signal for one region on `date` (default today). This is what the
- * frontend reads to tell a user "people who share your <family> report X/6
- * today". Families with fewer than `MIN_REPORTS` reports are suppressed —
- * k-anonymity plus a statistical floor.
+ * Per-family signal for one region over a rolling window ending on `date`
+ * (default today), `WINDOW_DAYS` long. This is what the frontend reads to
+ * tell a user "people who share your <family> report X/6". Per-family daily
+ * buckets are summed across the window, so a family's average is its pooled
+ * severity_sum / report_count. Families below `MIN_REPORTS` over the window are
+ * suppressed (currently a floor of 1, so only truly empty families drop out).
  */
 export async function getRegionFamilies(
   regionId: number,
   date?: string,
 ): Promise<RegionFamily[]> {
-  const day = date ?? isoDate();
+  const { since, end } = windowRange(date);
 
   const rows = await db
     .select({
       family: dailyAggregates.familyId,
       label: families.label,
-      sum: dailyAggregates.severitySum,
-      count: dailyAggregates.reportCount,
+      sum: sql<string>`sum(${dailyAggregates.severitySum})`,
+      count: sql<string>`sum(${dailyAggregates.reportCount})`,
     })
     .from(dailyAggregates)
     .leftJoin(families, eq(dailyAggregates.familyId, families.id))
     .where(
       and(
         eq(dailyAggregates.regionId, regionId),
-        eq(dailyAggregates.date, day),
-        gte(dailyAggregates.reportCount, MIN_REPORTS),
+        gte(dailyAggregates.date, since),
+        lte(dailyAggregates.date, end),
       ),
     )
+    .groupBy(dailyAggregates.familyId, families.label, families.sort)
+    .having(sql`sum(${dailyAggregates.reportCount}) >= ${MIN_REPORTS}`)
     .orderBy(families.sort);
 
   return rows.map((r) => {
-    const avg = r.sum / r.count;
+    const sum = Number(r.sum);
+    const count = Number(r.count);
+    const avg = sum / count;
     return {
       family: r.family,
       label: r.label,
       avgSeverity: avg,
-      reportCount: r.count,
+      reportCount: count,
       color: severityColor(avg),
     };
   });

@@ -234,15 +234,23 @@ response or the database — they only determined which family buckets
 
 ### GET /regions/:id/families
 
-Per-family signal for one region on a day — the data behind *"people who share
-your &lt;family&gt; report X/6 today."* Families with fewer than the suppression
-floor (`MIN_REPORTS`, currently 3) are **omitted** (k-anonymity + statistical
-floor).
+Per-family signal for one region over a **rolling 3-day window** ending on the
+given day — the data behind *"people who share your &lt;family&gt; report X/6."*
+Per-family daily buckets are pooled across the window (`severity_sum` and
+`report_count` summed). Families below the suppression floor (`MIN_REPORTS`,
+currently **1**) over the window are **omitted** — so only truly empty families
+drop out.
+
+> `reportCount` is returned but the client **does not display it**: a family is
+> shown by severity alone, so a one-person family reads the same as a
+> forty-person one and can't be singled out. With no identity stored, that's the
+> privacy guard in place of a higher k-anonymity floor.
 
 The client maps the user's saved plants → families locally (via `/meta`) and
 shows the matching families from this response.
 
-**Path:** `id` — a `region.id`. **Query:** `date` (optional, `YYYY-MM-DD`, default today).
+**Path:** `id` — a `region.id`. **Query:** `date` (optional, `YYYY-MM-DD`,
+default today; the window is the 3 days ending on it).
 
 **Request**
 
@@ -297,16 +305,16 @@ curl "http://localhost:3000/regions/2162/trends?family=fagales&days=7"
 
 ### GET /regions/status
 
-Overall status color for every region that has reports on a given day — the data
-behind the **home-page world map**. One vote per report (no fan-out inflation).
-Each item includes `lat`/`lng` for plotting a colored dot. Regions with no
-reports that day are omitted.
+Overall status color for every region with reports over the rolling **3-day
+window** ending on the given day — the data behind the **home-page world map**.
+One vote per report (no fan-out inflation). Each item includes `lat`/`lng` for
+plotting a colored dot. Regions with no reports in the window are omitted.
 
 **Query parameters**
 
 | Name   | Type   | Required | Default | Notes |
 | ------ | ------ | -------- | ------- | ----- |
-| `date` | string | no       | today   | `YYYY-MM-DD` |
+| `date` | string | no       | today   | `YYYY-MM-DD`; the window is the 3 days ending on it |
 
 **200**
 
