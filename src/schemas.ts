@@ -1,30 +1,23 @@
 import { z } from "zod";
-import { REPORT_ALLERGENS } from "./db/schema.js";
 
-export const createReportSchema = z.object({
-  // The user picks a place from the typeahead; the server resolves it to
-  // the region it reports under, so clients can't post arbitrary regions.
-  placeId: z.number().int().positive(),
-  // A user can be reacting to several allergens at once, each at its own
-  // severity (e.g. birch 5, grass 2). One submission fans out into one
-  // stored report per allergen. `unknown` ("I don't know my allergens") is
-  // just another value here — it may stand alone or sit alongside named ones.
-  reports: z
-    .array(
-      z.object({
-        allergen: z.enum(REPORT_ALLERGENS),
-        severity: z.number().int().min(1).max(6),
-      }),
-    )
-    .min(1)
-    .max(REPORT_ALLERGENS.length)
-    .refine(
-      (items) => new Set(items.map((r) => r.allergen)).size === items.length,
-      { message: "duplicate allergen" },
-    ),
-});
+export const createSubmissionSchema = z
+  .object({
+    // The user picks a place from the typeahead; the server resolves it to the
+    // region it reports under, so clients can't post arbitrary regions.
+    placeId: z.number().int().positive(),
+    // One overall severity for the whole submission (not per allergen).
+    severity: z.number().int().min(1).max(6),
+    // The plants the user is allergic to. Used server-side only to work out the
+    // affected families, then discarded — never stored. May be empty when
+    // `unknown` is set ("I don't know which plant").
+    plants: z.array(z.string().min(1)).max(64).default([]),
+    unknown: z.boolean().optional(),
+  })
+  .refine((d) => d.unknown === true || d.plants.length > 0, {
+    message: "pick at least one plant or set unknown",
+  });
 
-export type CreateReportInput = z.infer<typeof createReportSchema>;
+export type CreateSubmissionInput = z.infer<typeof createSubmissionSchema>;
 
 export const placeSearchQuerySchema = z.object({
   q: z.string().trim().min(1).max(80),
@@ -47,7 +40,7 @@ export const nearestQuerySchema = z.object({
 export type NearestQuery = z.infer<typeof nearestQuerySchema>;
 
 export const trendsQuerySchema = z.object({
-  allergen: z.enum(REPORT_ALLERGENS).optional(),
+  family: z.string().min(1).optional(),
   days: z.coerce.number().int().min(1).max(365).default(30),
 });
 

@@ -2,7 +2,17 @@ import "dotenv/config";
 import { readFileSync } from "node:fs";
 import cities from "all-the-cities";
 import { db } from "./index.js";
-import { dailyAggregates, places, regions, reports } from "./schema.js";
+import {
+  dailyAggregates,
+  displayGroups,
+  families,
+  places,
+  plantProteins,
+  plants,
+  proteins,
+  regions,
+  submissions,
+} from "./schema.js";
 
 // Readable names so users never see raw GeoNames codes. Country comes from
 // the built-in Intl data; region (admin1) from the GeoNames names dataset.
@@ -97,8 +107,95 @@ async function insertChunked<T>(
   }
 }
 
+type LabelSort = { label: string; sort: number };
+type PlantData = {
+  name: string;
+  scientificName: string;
+  type: "tree" | "grass" | "weed";
+  family: string;
+  featured?: boolean;
+  displayGroup?: string;
+};
+type ProteinData = {
+  name: string;
+  kind: "major" | "panallergen";
+  strength: "strong" | "moderate" | "weak";
+  plants: string[];
+};
+
+function readJson<T>(file: string): T {
+  return JSON.parse(
+    readFileSync(new URL(`./data/${file}`, import.meta.url), "utf8"),
+  ) as T;
+}
+
+/**
+ * Seed the allergen reference data (families, display groups, proteins, plants
+ * and the plant↔protein links) from the curated JSON files. Idempotent: wipes
+ * and reinserts, child tables first.
+ */
+async function seedReference(): Promise<void> {
+  const familyData = readJson<Record<string, LabelSort>>("families.json");
+  const groupData = readJson<Record<string, LabelSort>>("display-groups.json");
+  const plantData = readJson<Record<string, PlantData>>("plants.json");
+  const proteinData = readJson<Record<string, ProteinData>>("proteins.json");
+
+  // Children first so re-runs are clean.
+  await db.delete(plantProteins);
+  await db.delete(plants);
+  await db.delete(proteins);
+  await db.delete(displayGroups);
+  await db.delete(families);
+
+  await db.insert(families).values(
+    Object.entries(familyData).map(([id, f]) => ({
+      id,
+      label: f.label,
+      sort: f.sort,
+    })),
+  );
+  await db.insert(displayGroups).values(
+    Object.entries(groupData).map(([id, g]) => ({
+      id,
+      label: g.label,
+      sort: g.sort,
+    })),
+  );
+  await db.insert(proteins).values(
+    Object.entries(proteinData).map(([id, p]) => ({
+      id,
+      name: p.name,
+      kind: p.kind,
+      strength: p.strength,
+    })),
+  );
+  await db.insert(plants).values(
+    Object.entries(plantData).map(([id, p]) => ({
+      id,
+      name: p.name,
+      scientificName: p.scientificName,
+      type: p.type,
+      familyId: p.family,
+      featured: p.featured ?? false,
+      displayGroupId: p.displayGroup ?? null,
+    })),
+  );
+  const links = Object.entries(proteinData).flatMap(([proteinId, p]) =>
+    p.plants.map((plantId) => ({ plantId, proteinId })),
+  );
+  await db.insert(plantProteins).values(links);
+
+  console.log(
+    `seeded ${Object.keys(familyData).length} families, ` +
+      `${Object.keys(proteinData).length} proteins, ` +
+      `${Object.keys(plantData).length} plants, ${links.length} links`,
+  );
+}
+
 async function main() {
   console.log(`dataset: ${all.length} cities, ${anchors.length} anchors`);
+
+  await seedReference();
 
   // Resolve every place to the geonameId of the region it reports under.
   const targetOf = new Map<number, number>();
@@ -122,7 +219,7 @@ async function main() {
   }
 
   // Wipe (children first) so re-runs are clean.
-  await db.delete(reports);
+  await db.delete(submissions);
   await db.delete(dailyAggregates);
   await db.delete(places);
   await db.delete(regions);

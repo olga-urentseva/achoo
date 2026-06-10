@@ -1,0 +1,17 @@
+{
+  "fagales":       { "label": "Birch, oak, alder, hazel, hornbeam, hop-hornbeam, beech, chestnut", "sort": 1 },
+  "poaceae":       { "label": "Timothy, orchard grass, ryegrass, Kentucky bluegrass, sweet vernal grass, Bermuda grass, Bahia grass, Johnson grass", "sort": 2 },
+  "cupressaceae":  { "label": "Cypress, Arizona cypress, Japanese cedar, Japanese cypress, mountain cedar, eastern red cedar, prickly juniper", "sort": 3 },
+  "oleaceae":      { "label": "Olive, ash, privet, lilac",     "sort": 4 },
+  "asteraceae":    { "label": "Ragweed, mugwort, feverfew, sunflower", "sort": 5 },
+  "amaranthaceae": { "label": "Goosefoot, Russian thistle, amaranth", "sort": 6 },
+  "platanaceae":   { "label": "London plane, Oriental plane",  "sort": 7 },
+  "urticaceae":    { "label": "Pellitory",                     "sort": 8 },
+  "plantaginaceae":{ "label": "English plantain",              "sort": 9 },
+  "arecaceae":     { "label": "Date palm",                     "sort": 10 },
+  "fabaceae":      { "label": "Black locust",                  "sort": 11 },
+  "brassicaceae":  { "label": "Rapeseed",                      "sort": 12 },
+  "solanaceae":    { "label": "Tobacco",                       "sort": 13 },
+  "euphorbiaceae": { "label": "Annual mercury",                "sort": 14 },
+  "unknown":       { "label": "Unknown / not sure",            "sort": 99 }
+}

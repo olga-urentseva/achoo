@@ -1,1 +1,0 @@
-ALTER TYPE "public"."allergen" ADD VALUE 'unknown';

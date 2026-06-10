@@ -26,7 +26,9 @@ The web app reads `VITE_API_URL` (defaults to `http://localhost:3000`).
 
 ## Privacy model
 
-- Reports are **anonymous**: only `severity`, `allergen`, `region`, `date`.
+- Reports are **anonymous**: only `severity`, `region`, `date` are stored. The
+  picked plants are mapped to families and folded into the daily rollups at write
+  time, then **discarded** — no per-person allergen profile is ever persisted.
 - No auth, no IP, no session token reaches the database.
 - Once-per-day throttling and personal history live **client-side** (later).
 
@@ -71,12 +73,13 @@ Full reference with request/response shapes and error formats:
 | Method | Path                     | Purpose                                       |
 | ------ | ------------------------ | --------------------------------------------- |
 | GET    | `/health`                | liveness check                                |
-| GET    | `/meta`                  | allergen list + severity scale + colors       |
+| GET    | `/meta`                  | plants + display groups + families + scale + colors |
 | GET    | `/meta/cross-reactivity` | shared-protein map for client recommendations |
 | GET    | `/places/search`         | typeahead (`?q=zelen&limit=10`)               |
-| GET    | `/regions/status`        | today's color per active region (`?date=`)    |
-| GET    | `/regions/:id/trends`    | daily trend (`?allergen=`, `?days=30`)        |
-| POST   | `/reports`               | submit an anonymous report (one or more allergens) |
+| GET    | `/regions/status`        | today's overall color per active region (`?date=`) |
+| GET    | `/regions/:id/families`  | per-family signal for one region (`?date=`)   |
+| GET    | `/regions/:id/trends`    | daily trend (`?family=`, `?days=30`)          |
+| POST   | `/reports`               | submit an anonymous report (severity + picked plants) |
 
 ### Find a place, then submit
 
@@ -89,7 +92,7 @@ curl "http://localhost:3000/places/search?q=zelenodolsk"
 
 curl -X POST http://localhost:3000/reports \
   -H 'content-type: application/json' \
-  -d '{ "placeId": 104187, "reports": [{ "allergen": "birch", "severity": 5 }] }'
+  -d '{ "placeId": 104187, "severity": 5, "plants": ["birch", "oak"] }'
 ```
 
 ### Region colors today
@@ -100,12 +103,15 @@ curl http://localhost:3000/regions/status
 
 ## Schema
 
-- `regions` — agglomerations (the aggregation units). Reports and colors attach here.
+- `regions` — agglomerations (the aggregation units). The map and aggregates attach here.
 - `places` — worldwide searchable index; each place points to the region it
   reports under. Small towns roll up into their nearest metro.
-- `reports` — anonymous source of truth (`severity` 1–6, `allergen`, `region`, `date`).
-- `daily_aggregates` — pre-computed per region/allergen/day rollup; refreshed on
-  each insert. The performance cache behind trends and colors.
+- `submissions` — one anonymous row per report (`severity` 1–6, `region`, `date`);
+  no allergen info. Powers the region-overall map color.
+- `daily_aggregates` — per region/**family**/day rollup (`severitySum`,
+  `reportCount`); incremented on each report. The only place allergen signal lives.
+- `plants` / `proteins` / `families` / `display_groups` — reference data seeded
+  from `src/db/data/*.json` (what users pick; cross-reactivity; aggregation family).
 
 Color thresholds live in `src/lib/severity.ts` (single source of truth).
 

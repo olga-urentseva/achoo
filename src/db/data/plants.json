@@ -1,0 +1,52 @@
+{
+  "birch":              { "name": "Birch",              "scientificName": "Betula pendula",          "type": "tree",  "family": "fagales",       "featured": true },
+  "alder":              { "name": "Alder",              "scientificName": "Alnus glutinosa",         "type": "tree",  "family": "fagales",       "featured": true },
+  "hazel":              { "name": "Hazel",              "scientificName": "Corylus avellana",        "type": "tree",  "family": "fagales",       "featured": true },
+  "oak":                { "name": "Oak",                "scientificName": "Quercus alba",            "type": "tree",  "family": "fagales",       "featured": true },
+  "hornbeam":           { "name": "Hornbeam",           "scientificName": "Carpinus betulus",        "type": "tree",  "family": "fagales" },
+  "hop-hornbeam":       { "name": "Hop-hornbeam",       "scientificName": "Ostrya carpinifolia",     "type": "tree",  "family": "fagales" },
+  "beech":              { "name": "Beech",              "scientificName": "Fagus sylvatica",         "type": "tree",  "family": "fagales" },
+  "chestnut":           { "name": "Chestnut",           "scientificName": "Castanea sativa",         "type": "tree",  "family": "fagales" },
+
+  "timothy":            { "name": "Timothy grass",      "scientificName": "Phleum pratense",         "type": "grass", "family": "poaceae", "displayGroup": "grasses" },
+  "orchard-grass":      { "name": "Orchard grass",      "scientificName": "Dactylis glomerata",      "type": "grass", "family": "poaceae", "displayGroup": "grasses" },
+  "ryegrass":           { "name": "Perennial ryegrass", "scientificName": "Lolium perenne",          "type": "grass", "family": "poaceae", "displayGroup": "grasses" },
+  "kentucky-bluegrass": { "name": "Kentucky bluegrass", "scientificName": "Poa pratensis",           "type": "grass", "family": "poaceae", "displayGroup": "grasses" },
+  "sweet-vernal-grass": { "name": "Sweet vernal grass", "scientificName": "Anthoxanthum odoratum",   "type": "grass", "family": "poaceae", "displayGroup": "grasses" },
+  "bermuda-grass":      { "name": "Bermuda grass",      "scientificName": "Cynodon dactylon",        "type": "grass", "family": "poaceae", "displayGroup": "grasses" },
+  "bahia-grass":        { "name": "Bahia grass",        "scientificName": "Paspalum notatum",        "type": "grass", "family": "poaceae", "displayGroup": "grasses" },
+  "johnson-grass":      { "name": "Johnson grass",      "scientificName": "Sorghum halepense",       "type": "grass", "family": "poaceae", "displayGroup": "grasses" },
+
+  "cypress":            { "name": "Common cypress",     "scientificName": "Cupressus sempervirens",  "type": "tree",  "family": "cupressaceae", "displayGroup": "cypress" },
+  "arizona-cypress":    { "name": "Arizona cypress",    "scientificName": "Cupressus arizonica",     "type": "tree",  "family": "cupressaceae", "displayGroup": "cypress" },
+  "japanese-cedar":     { "name": "Japanese cedar (sugi)", "scientificName": "Cryptomeria japonica", "type": "tree", "family": "cupressaceae", "displayGroup": "cypress" },
+  "japanese-cypress":   { "name": "Japanese cypress",   "scientificName": "Chamaecyparis obtusa",    "type": "tree",  "family": "cupressaceae", "displayGroup": "cypress" },
+  "mountain-cedar":     { "name": "Mountain cedar",     "scientificName": "Juniperus ashei",         "type": "tree",  "family": "cupressaceae", "displayGroup": "cypress" },
+  "eastern-red-cedar":  { "name": "Eastern red cedar",  "scientificName": "Juniperus virginiana",    "type": "tree",  "family": "cupressaceae", "displayGroup": "cypress" },
+  "prickly-juniper":    { "name": "Prickly juniper",    "scientificName": "Juniperus oxycedrus",     "type": "tree",  "family": "cupressaceae", "displayGroup": "cypress" },
+
+  "ragweed":            { "name": "Ragweed",            "scientificName": "Ambrosia artemisiifolia", "type": "weed",  "family": "asteraceae",    "featured": true },
+  "mugwort":            { "name": "Mugwort",            "scientificName": "Artemisia vulgaris",      "type": "weed",  "family": "asteraceae",    "featured": true },
+  "feverfew":           { "name": "Feverfew (parthenium weed)", "scientificName": "Parthenium hysterophorus", "type": "weed", "family": "asteraceae" },
+  "sunflower":          { "name": "Sunflower",          "scientificName": "Helianthus annuus",       "type": "weed",  "family": "asteraceae" },
+
+  "olive":              { "name": "Olive",              "scientificName": "Olea europaea",           "type": "tree",  "family": "oleaceae",      "featured": true },
+  "ash":                { "name": "Ash",                "scientificName": "Fraxinus excelsior",      "type": "tree",  "family": "oleaceae" },
+  "privet":             { "name": "Privet",             "scientificName": "Ligustrum vulgare",       "type": "tree",  "family": "oleaceae" },
+  "lilac":              { "name": "Lilac",              "scientificName": "Syringa vulgaris",        "type": "tree",  "family": "oleaceae" },
+
+  "goosefoot":          { "name": "Goosefoot",          "scientificName": "Chenopodium album",       "type": "weed",  "family": "amaranthaceae" },
+  "russian-thistle":    { "name": "Russian thistle",    "scientificName": "Salsola kali",            "type": "weed",  "family": "amaranthaceae" },
+  "amaranth":           { "name": "Amaranth",           "scientificName": "Amaranthus retroflexus",  "type": "weed",  "family": "amaranthaceae" },
+
+  "plane":              { "name": "London plane tree",  "scientificName": "Platanus acerifolia",     "type": "tree",  "family": "platanaceae",   "featured": true },
+  "oriental-plane":     { "name": "Oriental plane",     "scientificName": "Platanus orientalis",     "type": "tree",  "family": "platanaceae" },
+
+  "pellitory":          { "name": "Pellitory",          "scientificName": "Parietaria judaica",      "type": "weed",  "family": "urticaceae" },
+  "english-plantain":   { "name": "English plantain",   "scientificName": "Plantago lanceolata",     "type": "weed",  "family": "plantaginaceae" },
+  "date-palm":          { "name": "Date palm",          "scientificName": "Phoenix dactylifera",     "type": "tree",  "family": "arecaceae" },
+  "locust-tree":        { "name": "Black locust",       "scientificName": "Robinia pseudoacacia",    "type": "tree",  "family": "fabaceae" },
+  "rapeseed":           { "name": "Rapeseed",           "scientificName": "Brassica napus",          "type": "weed",  "family": "brassicaceae" },
+  "tobacco":            { "name": "Tobacco",            "scientificName": "Nicotiana tabacum",       "type": "weed",  "family": "solanaceae" },
+  "annual-mercury":     { "name": "Annual mercury",     "scientificName": "Mercurialis annua",       "type": "weed",  "family": "euphorbiaceae" }
+}

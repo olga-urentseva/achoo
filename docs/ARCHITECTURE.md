@@ -89,15 +89,14 @@ wrong layer.
 
 ## 4. A request traced: `POST /reports`
 
-Body: `{ "placeId": 104187, "reports": [{ "allergen": "birch", "severity": 5 }] }`
-(Zelenodolsk). `reports` is an array so a user can submit several allergens at
-once, each at its own severity.
+Body: `{ "placeId": 104187, "severity": 5, "plants": ["birch", "oak"] }`
+(Zelenodolsk). One overall severity; `plants` lists what the user is allergic to.
 
 **1. Route** — match path, validate, hand off:
 
 ```ts
 // routes/reports.routes.ts
-reportsRoutes.post("/", zValidator("json", createReportSchema), createReport);
+reportsRoutes.post("/", zValidator("json", createSubmissionSchema), createReport);
 ```
 
 If the body is invalid, `zValidator` returns `400` itself and the controller
@@ -107,12 +106,12 @@ never runs.
 
 ```ts
 // controllers/reports.controller.ts
-const input = validated<CreateReportInput>(c, "json");
-const report = await reportsService.createReport(input);
-return c.json(report, 201);
+const input = validated<CreateSubmissionInput>(c, "json");
+const submission = await reportsService.createSubmission(input);
+return c.json(submission, 201);
 ```
 
-**3. Service** — the work and the rules:
+**3. Service** — the work and the rules (privacy-first):
 
 ```ts
 // services/reports.service.ts
@@ -120,19 +119,22 @@ const [place] = await db.select({ regionId: places.regionId })
   .from(places).where(eq(places.id, input.placeId));
 if (!place) throw new NotFoundError("unknown place");
 
-// One row per reported allergen, then refresh each touched bucket.
-const rows = await db.insert(reports)
-  .values(input.reports.map((r) =>
-    ({ regionId: place.regionId, allergen: r.allergen, severity: r.severity })))
-  .returning();
+// Map picked plants → distinct home families (the plants are NOT stored).
+const rows = await db.select({ familyId: plants.familyId })
+  .from(plants).where(inArray(plants.id, input.plants));
+const families = [...new Set(rows.map((r) => r.familyId))];
 
-for (const row of rows)
-  await refreshAggregate(row.regionId, row.allergen, row.reportedOn);
-return rows;
+// Store only region + severity + date; fold each family into the rollup once.
+const [submission] = await db.insert(submissions)
+  .values({ regionId: place.regionId, severity: input.severity }).returning();
+for (const familyId of families)
+  await bumpAggregate(submission.regionId, familyId, submission.reportedOn, input.severity);
+return submission;
 ```
 
 Here Zelenodolsk's `placeId` (104187) is translated to **Kazan's `regionId`**
-(2162); the report is stored against Kazan.
+(2162). `birch`+`oak` both resolve to `fagales`, so the family is counted once;
+the plant ids are never written anywhere.
 
 **4. Error path** — if the place doesn't exist the service throws
 `NotFoundError`, which bubbles to `app.onError` in `index.ts` and becomes
@@ -148,23 +150,33 @@ id            104187 ──┐          id          2162
 name      "Zelenodolsk"│  region  name        "Kazan"
 regionId      2162 ────┴────────▶ lat, lng    (for the map)
                                        ▲
-reports (raw, anonymous)               │ regionId
+submissions (anonymous)                │ regionId
 ──────────────────────                 │
 regionId ──────────────────────────────┤
-allergen  "birch"                       │
-severity  5                             │ regionId + allergen + date
-reportedOn 2026-06-02                   ▼
-                            daily_aggregates (cache)
+severity  5                            │ (picked plants mapped to
+reportedOn 2026-06-08                  │  families at write, then
+   (no allergen columns)               │  discarded — never stored)
+                                       │ regionId + family + date
+                                       ▼
+                            daily_aggregates
                             ───────────────────────────
-                            regionId, allergen, date  (PK)
-                            avgSeverity, reportCount
+                            regionId, familyId, date  (PK)
+                            severitySum, reportCount
+
+reference data (seeded from src/db/data/*.json):
+  plants ─(family_id)→ families      plants ─◀ plant_proteins ▶─ proteins
+  plants ─(display_group_id)→ display_groups
 ```
 
 - **`places`** — what users search; each points to the region it reports under.
-- **`regions`** — the metros; reports and the map attach here; holds `lat/lng`.
-- **`reports`** — raw anonymous truth (no identity: region / allergen / severity / date).
-- **`daily_aggregates`** — pre-computed rollup for fast reads; rebuilt on each
-  insert. Feeds trends and region colors.
+- **`regions`** — the metros; the map and aggregates attach here; holds `lat/lng`.
+- **`submissions`** — one anonymous row per report: region / severity / date,
+  **no allergen info**. Powers the region-overall map color.
+- **`daily_aggregates`** — the only place allergen signal lives, by family.
+  Stores `severitySum + reportCount` so each write is an atomic increment.
+- **`plants` / `proteins` / `families` / `display_groups`** — reference data:
+  what users pick, the proteins that drive predictions, and the family each plant
+  aggregates into.
 
 ## 6. How the data got there (seed)
 
