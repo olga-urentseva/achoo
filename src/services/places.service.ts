@@ -9,6 +9,9 @@ export interface PlaceResult {
   admin1: string;
   country: string;
   population: number;
+  /** Place coordinates, so the client can map/zoom to it without a report. */
+  lat: number;
+  lng: number;
   region: {
     id: number;
     name: string;
@@ -38,6 +41,8 @@ export async function searchPlaces(
       admin1: places.admin1,
       country: places.country,
       population: places.population,
+      lat: places.lat,
+      lng: places.lng,
       regionId: regions.id,
       regionName: regions.name,
       regionAdmin1: regions.admin1,
@@ -55,6 +60,8 @@ export async function searchPlaces(
     admin1: r.admin1,
     country: r.country,
     population: r.population,
+    lat: r.lat,
+    lng: r.lng,
     region: {
       id: r.regionId,
       name: r.regionName,
@@ -89,6 +96,8 @@ export async function getNearestPlace(
       admin1: places.admin1,
       country: places.country,
       population: places.population,
+      lat: places.lat,
+      lng: places.lng,
       regionId: regions.id,
       regionName: regions.name,
       regionAdmin1: regions.admin1,
@@ -108,6 +117,8 @@ export async function getNearestPlace(
     admin1: r.admin1,
     country: r.country,
     population: r.population,
+    lat: r.lat,
+    lng: r.lng,
     region: {
       id: r.regionId,
       name: r.regionName,

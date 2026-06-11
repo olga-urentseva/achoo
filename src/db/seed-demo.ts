@@ -26,8 +26,9 @@ type Scenario = {
   unknown?: boolean;
 };
 
-// Vancouver, BC → region 319. Find others with: GET /places/search?q=<city>
-const VANCOUVER = 13144;
+// Vancouver, BC. placeId changes on every re-seed (the serial keeps growing),
+// so re-confirm after `npm run db:seed`: GET /places/search?q=vancouver
+const VANCOUVER = 148377;
 
 const SCENARIOS: Scenario[] = [
   { label: "4× mugwort (asteraceae)", placeId: VANCOUVER, plants: ["mugwort"], count: 4, severity: [1, 6] },
