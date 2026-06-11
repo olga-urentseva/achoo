@@ -62,10 +62,37 @@ type City = {
 
 const all = cities as unknown as City[];
 
-// Anchor coordinate columns, kept as flat arrays for a fast nearest scan.
-const anchors = all.filter((c) => c.population >= ANCHOR_MIN);
-const anLng = anchors.map((a) => a.loc.coordinates[0]);
-const anLat = anchors.map((a) => a.loc.coordinates[1]);
+// Anchors = the regions every place reports under. A city qualifies only if it
+// is big enough (>= ANCHOR_MIN) AND not within RADIUS_KM of an already chosen,
+// larger anchor. Without that second rule a populous suburb (Surrey, Burnaby,
+// Richmond — all >= 200k but ~20km from Vancouver) splits into its own region
+// instead of rolling up into its metro. Candidates are taken largest-first, so
+// the biggest city in each ~RADIUS_KM cluster wins and the rest snap into it.
+// Flat lat/lng arrays double as the fast nearest-scan columns below.
+const anchorMaxSq = (RADIUS_KM / (EARTH_KM * DEG)) ** 2;
+const anchors: City[] = [];
+const anLng: number[] = [];
+const anLat: number[] = [];
+for (const c of all
+  .filter((c) => c.population >= ANCHOR_MIN)
+  .sort((a, b) => b.population - a.population)) {
+  const [lng, lat] = c.loc.coordinates;
+  const cosLat = Math.cos(lat * DEG);
+  let merged = false;
+  for (let i = 0; i < anchors.length; i++) {
+    const dx = (anLng[i]! - lng) * cosLat;
+    const dy = anLat[i]! - lat;
+    if (dx * dx + dy * dy <= anchorMaxSq) {
+      merged = true; // within RADIUS_KM of a bigger anchor → same metro
+      break;
+    }
+  }
+  if (!merged) {
+    anchors.push(c);
+    anLng.push(lng);
+    anLat.push(lat);
+  }
+}
 
 /** Nearest anchor by equirectangular approximation (good enough under ~100km). */
 function nearestAnchor(lat: number, lng: number): { idx: number; distKm: number } {

@@ -79,6 +79,73 @@ export async function getRegionStatus(date?: string): Promise<RegionStatus[]> {
   });
 }
 
+/**
+ * The nearest regions to a coordinate, within `radiusKm`, each carrying its
+ * rolling-window status — INCLUDING regions with no reports (reportCount 0,
+ * color null). This is what the map uses to plot the major cities around a
+ * picked location: reported ones in their severity colour, the rest in grey.
+ * Returns distinct region anchors only (suburbs roll up into their metro), so
+ * Vancouver's neighbours are other metros, never its own suburbs.
+ */
+export async function getNearbyRegions(
+  lat: number,
+  lng: number,
+  radiusKm: number,
+  limit: number,
+  date?: string,
+): Promise<RegionStatus[]> {
+  const { since, end } = windowRange(date);
+
+  // Haversine in SQL; clamp the acos argument to [-1, 1] against float drift.
+  const distanceKm = sql<number>`6371 * acos(least(1, greatest(-1,
+    cos(radians(${lat})) * cos(radians(${regions.lat}))
+      * cos(radians(${regions.lng}) - radians(${lng}))
+    + sin(radians(${lat})) * sin(radians(${regions.lat}))
+  )))`;
+
+  const rows = await db
+    .select({
+      regionId: regions.id,
+      name: regions.name,
+      admin1: regions.admin1,
+      country: regions.country,
+      lat: regions.lat,
+      lng: regions.lng,
+      avg: sql<string>`avg(${submissions.severity})`,
+      count: sql<string>`count(${submissions.id})`,
+    })
+    .from(regions)
+    .leftJoin(
+      submissions,
+      and(
+        eq(submissions.regionId, regions.id),
+        gte(submissions.reportedOn, since),
+        lte(submissions.reportedOn, end),
+      ),
+    )
+    .where(sql`${distanceKm} <= ${radiusKm}`)
+    .groupBy(regions.id)
+    .orderBy(distanceKm)
+    .limit(limit);
+
+  return rows.map((r) => {
+    const count = Number(r.count);
+    const avg = count > 0 ? Number(r.avg) : 0;
+    return {
+      regionId: r.regionId,
+      name: r.name,
+      admin1: r.admin1,
+      country: r.country,
+      lat: r.lat,
+      lng: r.lng,
+      date: end,
+      reportCount: count,
+      avgSeverity: avg,
+      color: count > 0 ? severityColor(avg) : null,
+    };
+  });
+}
+
 export interface RegionFamily {
   family: string;
   label: string | null;

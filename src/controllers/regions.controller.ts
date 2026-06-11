@@ -1,6 +1,6 @@
 import type { Context } from "hono";
 import { validated } from "../lib/validated.js";
-import type { StatusQuery, TrendsQuery } from "../schemas.js";
+import type { NearbyQuery, StatusQuery, TrendsQuery } from "../schemas.js";
 import * as regionsService from "../services/regions.service.js";
 
 function regionId(c: Context): number | null {
@@ -11,6 +11,13 @@ function regionId(c: Context): number | null {
 export async function getRegionStatus(c: Context) {
   const { date } = validated<StatusQuery>(c, "query");
   return c.json(await regionsService.getRegionStatus(date));
+}
+
+export async function getNearbyRegions(c: Context) {
+  const { lat, lng, radiusKm, limit } = validated<NearbyQuery>(c, "query");
+  return c.json(
+    await regionsService.getNearbyRegions(lat, lng, radiusKm, limit),
+  );
 }
 
 export async function getRegionFamilies(c: Context) {

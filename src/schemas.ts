@@ -39,6 +39,15 @@ export const nearestQuerySchema = z.object({
 
 export type NearestQuery = z.infer<typeof nearestQuerySchema>;
 
+export const nearbyQuerySchema = z.object({
+  lat: z.coerce.number().min(-90).max(90),
+  lng: z.coerce.number().min(-180).max(180),
+  radiusKm: z.coerce.number().min(1).max(1000).default(200),
+  limit: z.coerce.number().int().min(1).max(50).default(8),
+});
+
+export type NearbyQuery = z.infer<typeof nearbyQuerySchema>;
+
 export const trendsQuerySchema = z.object({
   family: z.string().min(1).optional(),
   days: z.coerce.number().int().min(1).max(365).default(30),
