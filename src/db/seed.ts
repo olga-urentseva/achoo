@@ -3,16 +3,24 @@ import { readFileSync } from "node:fs";
 import cities from "all-the-cities";
 import { db } from "./index.js";
 import {
+  allergenProteins,
+  allergens,
   dailyAggregates,
   displayGroups,
   families,
   places,
-  plantProteins,
-  plants,
   proteins,
   regions,
   submissions,
 } from "./schema.js";
+
+/**
+ * The category buckets inside `allergen-proteins.json`. Plants are a category
+ * too (at the API level), but they live in `plants.json`/`plants` — they were
+ * deliberately dropped from this file — so only these three appear here.
+ */
+const ALLERGEN_FILE_CATEGORIES = ["food", "animal", "other"] as const;
+type AllergenFileCategory = (typeof ALLERGEN_FILE_CATEGORIES)[number];
 
 // Readable names so users never see raw GeoNames codes. Country comes from
 // the built-in Intl data; region (admin1) from the GeoNames names dataset.
@@ -149,6 +157,12 @@ type ProteinData = {
   strength: "strong" | "moderate" | "weak";
   plants: string[];
 };
+/** A protein in `allergen-proteins.json`: its non-plant carriers, by category. */
+type AllergenProteinData = {
+  name: string;
+  kind: "major" | "panallergen";
+  strength: "strong" | "moderate" | "weak";
+} & Partial<Record<AllergenFileCategory, string[]>>;
 
 function readJson<T>(file: string): T {
   return JSON.parse(
@@ -166,10 +180,88 @@ async function seedReference(): Promise<void> {
   const groupData = readJson<Record<string, LabelSort>>("display-groups.json");
   const plantData = readJson<Record<string, PlantData>>("plants.json");
   const proteinData = readJson<Record<string, ProteinData>>("proteins.json");
+  const allergenProteinData = readJson<Record<string, AllergenProteinData>>(
+    "allergen-proteins.json",
+  );
+  const allergenNames = readJson<Record<string, string>>("allergens.json");
+
+  // Proteins come from both files (some, like PR-10/profilin, appear in both —
+  // plant carriers in one, food carriers in the other). Merge by id; the plant
+  // file wins for the shared defs since it's the long-standing source.
+  const proteinDefs = new Map<
+    string,
+    { name: string; kind: "major" | "panallergen"; strength: "strong" | "moderate" | "weak" }
+  >();
+  for (const [id, p] of Object.entries(allergenProteinData)) {
+    proteinDefs.set(id, { name: p.name, kind: p.kind, strength: p.strength });
+  }
+  for (const [id, p] of Object.entries(proteinData)) {
+    proteinDefs.set(id, { name: p.name, kind: p.kind, strength: p.strength });
+  }
+
+  // Every allergen source in one table. Start from the non-plant items (id +
+  // name, no pollen fields), then let plants override — so a source that is both
+  // (chestnut: tree pollen and a nut; sunflower: pollen and a seed) keeps its
+  // pollen fields and is still reachable from its food edges.
+  const allergenRows = new Map<
+    string,
+    {
+      id: string;
+      name: string;
+      type: "tree" | "grass" | "weed" | null;
+      scientificName: string | null;
+      familyId: string | null;
+      featured: boolean;
+      displayGroupId: string | null;
+    }
+  >();
+  for (const [id, name] of Object.entries(allergenNames)) {
+    allergenRows.set(id, {
+      id,
+      name,
+      type: null,
+      scientificName: null,
+      familyId: null,
+      featured: false,
+      displayGroupId: null,
+    });
+  }
+  for (const [id, p] of Object.entries(plantData)) {
+    allergenRows.set(id, {
+      id,
+      name: p.name,
+      type: p.type,
+      scientificName: p.scientificName,
+      familyId: p.family,
+      featured: p.featured ?? false,
+      displayGroupId: p.displayGroup ?? null,
+    });
+  }
+
+  // One row per (allergen, protein, category) edge — category on the edge so a
+  // source can belong to several (cattle: animal + food; chestnut: plant + food).
+  const allergenLinks = [
+    ...Object.entries(proteinData).flatMap(([proteinId, p]) =>
+      p.plants.map((allergenId) => ({
+        allergenId,
+        proteinId,
+        category: "plant" as const,
+      })),
+    ),
+    ...Object.entries(allergenProteinData).flatMap(([proteinId, p]) =>
+      ALLERGEN_FILE_CATEGORIES.flatMap((category) =>
+        (p[category] ?? []).map((allergenId) => ({
+          allergenId,
+          proteinId,
+          category,
+        })),
+      ),
+    ),
+  ];
 
   // Children first so re-runs are clean.
-  await db.delete(plantProteins);
-  await db.delete(plants);
+  await db.delete(allergenProteins);
+  await db.delete(allergens);
   await db.delete(proteins);
   await db.delete(displayGroups);
   await db.delete(families);
@@ -189,33 +281,22 @@ async function seedReference(): Promise<void> {
     })),
   );
   await db.insert(proteins).values(
-    Object.entries(proteinData).map(([id, p]) => ({
+    [...proteinDefs].map(([id, p]) => ({
       id,
       name: p.name,
       kind: p.kind,
       strength: p.strength,
     })),
   );
-  await db.insert(plants).values(
-    Object.entries(plantData).map(([id, p]) => ({
-      id,
-      name: p.name,
-      scientificName: p.scientificName,
-      type: p.type,
-      familyId: p.family,
-      featured: p.featured ?? false,
-      displayGroupId: p.displayGroup ?? null,
-    })),
-  );
-  const links = Object.entries(proteinData).flatMap(([proteinId, p]) =>
-    p.plants.map((plantId) => ({ plantId, proteinId })),
-  );
-  await db.insert(plantProteins).values(links);
+  await db.insert(allergens).values([...allergenRows.values()]);
+  await db.insert(allergenProteins).values(allergenLinks);
 
+  const plantCount = [...allergenRows.values()].filter((a) => a.type).length;
   console.log(
     `seeded ${Object.keys(familyData).length} families, ` +
-      `${Object.keys(proteinData).length} proteins, ` +
-      `${Object.keys(plantData).length} plants, ${links.length} links`,
+      `${proteinDefs.size} proteins, ` +
+      `${allergenRows.size} allergens (${plantCount} plants), ` +
+      `${allergenLinks.length} links`,
   );
 }
 

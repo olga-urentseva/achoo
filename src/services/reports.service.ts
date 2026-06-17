@@ -1,6 +1,6 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "../db/index.js";
-import { places, plants, submissions, UNKNOWN_FAMILY } from "../db/schema.js";
+import { allergens, places, submissions, UNKNOWN_FAMILY } from "../db/schema.js";
 import { NotFoundError } from "../lib/errors.js";
 import type { CreateSubmissionInput } from "../schemas.js";
 import { bumpAggregate } from "./aggregate.service.js";
@@ -18,17 +18,25 @@ export async function createSubmission(input: CreateSubmissionInput) {
     .where(eq(places.id, input.placeId));
   if (!place) throw new NotFoundError("unknown place");
 
-  // Map the picked plants to their distinct home families. The plants are used
-  // only here and are never written to the database.
+  // Map the picked plants to their distinct home families. Reports are about
+  // pollen only, so we match plant rows (those with a pollen `type`) — a food or
+  // animal id can never resolve to a family. The plants are used only here and
+  // are never written to the database.
   let families: string[];
   if (input.unknown) {
     families = [UNKNOWN_FAMILY];
   } else {
     const rows = await db
-      .select({ familyId: plants.familyId })
-      .from(plants)
-      .where(inArray(plants.id, input.plants));
-    families = [...new Set(rows.map((r) => r.familyId))];
+      .select({ familyId: allergens.familyId })
+      .from(allergens)
+      .where(
+        and(inArray(allergens.id, input.plants), isNotNull(allergens.type)),
+      );
+    families = [
+      ...new Set(
+        rows.map((r) => r.familyId).filter((f): f is string => f !== null),
+      ),
+    ];
     if (families.length === 0) throw new NotFoundError("unknown plant");
   }
 

@@ -49,18 +49,19 @@ export const displayGroups = pgTable("display_groups", {
 });
 
 /**
- * The selectable plants — what users pick from. `featured` marks the headline
- * chips; the rest live behind an "other" expander. Seeded from
- * `data/plants.json`.
+ * Every allergen source — plants, foods, animals (dander, mites, venom) and
+ * "other" (moulds) — all in one table, at the same level. The pollen-only
+ * fields (type, scientificName, familyId, displayGroupId, featured) are set for
+ * plants and null for the rest; the report form picks the rows that have a
+ * `type`. Seeded from `data/plants.json` + `data/allergens.json`.
  */
-export const plants = pgTable("plants", {
+export const allergens = pgTable("allergens", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
-  scientificName: text("scientific_name").notNull(),
-  type: plantTypeEnum("type").notNull(),
-  familyId: text("family_id")
-    .notNull()
-    .references(() => families.id),
+  // Pollen-only fields — null for non-plant sources.
+  type: plantTypeEnum("type"),
+  scientificName: text("scientific_name"),
+  familyId: text("family_id").references(() => families.id),
   featured: boolean("featured").notNull().default(false),
   displayGroupId: text("display_group_id").references(() => displayGroups.id),
 });
@@ -68,7 +69,7 @@ export const plants = pgTable("plants", {
 /**
  * Allergenic proteins. `kind`/`strength` drive cross-reactivity predictions —
  * panallergens (profilin, polcalcin) are broad but weak hints, never family
- * merges. Seeded from `data/proteins.json`.
+ * merges. Seeded from `data/proteins.json` + `data/allergen-proteins.json`.
  */
 export const proteins = pgTable("proteins", {
   id: text("id").primaryKey(),
@@ -77,18 +78,32 @@ export const proteins = pgTable("proteins", {
   strength: strengthEnum("strength").notNull(),
 });
 
-/** Which plant carries which protein (many-to-many). */
-export const plantProteins = pgTable(
-  "plant_proteins",
+export const allergenCategoryEnum = pgEnum("allergen_category", [
+  "plant",
+  "food",
+  "animal",
+  "other",
+]);
+
+/**
+ * Which allergen carries which protein, and the category that link represents.
+ * Category lives on the edge (not the allergen) because one source can belong to
+ * several — cattle is dander (animal) via lipocalin and milk/meat (food) via
+ * casein/alpha-Gal; chestnut is pollen (plant) and a nut (food). Seeded from
+ * `data/proteins.json` (plant edges) + `data/allergen-proteins.json` (the rest).
+ */
+export const allergenProteins = pgTable(
+  "allergen_proteins",
   {
-    plantId: text("plant_id")
+    allergenId: text("allergen_id")
       .notNull()
-      .references(() => plants.id),
+      .references(() => allergens.id),
     proteinId: text("protein_id")
       .notNull()
       .references(() => proteins.id),
+    category: allergenCategoryEnum("category").notNull(),
   },
-  (t) => [primaryKey({ columns: [t.plantId, t.proteinId] })],
+  (t) => [primaryKey({ columns: [t.allergenId, t.proteinId, t.category] })],
 );
 
 /**

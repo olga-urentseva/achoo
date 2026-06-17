@@ -1,9 +1,161 @@
 {
-  "id": "9701b7bc-540e-44ca-9f4d-5830d89af14c",
+  "id": "1f190372-c07b-4867-aac4-707ce64f4a4e",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public.allergen_proteins": {
+      "name": "allergen_proteins",
+      "schema": "",
+      "columns": {
+        "allergen_id": {
+          "name": "allergen_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "protein_id": {
+          "name": "protein_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "allergen_category",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "allergen_proteins_allergen_id_allergens_id_fk": {
+          "name": "allergen_proteins_allergen_id_allergens_id_fk",
+          "tableFrom": "allergen_proteins",
+          "tableTo": "allergens",
+          "columnsFrom": [
+            "allergen_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "allergen_proteins_protein_id_proteins_id_fk": {
+          "name": "allergen_proteins_protein_id_proteins_id_fk",
+          "tableFrom": "allergen_proteins",
+          "tableTo": "proteins",
+          "columnsFrom": [
+            "protein_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "allergen_proteins_allergen_id_protein_id_category_pk": {
+          "name": "allergen_proteins_allergen_id_protein_id_category_pk",
+          "columns": [
+            "allergen_id",
+            "protein_id",
+            "category"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.allergens": {
+      "name": "allergens",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "plant_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scientific_name": {
+          "name": "scientific_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "family_id": {
+          "name": "family_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "featured": {
+          "name": "featured",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "display_group_id": {
+          "name": "display_group_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "allergens_family_id_families_id_fk": {
+          "name": "allergens_family_id_families_id_fk",
+          "tableFrom": "allergens",
+          "tableTo": "families",
+          "columnsFrom": [
+            "family_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "allergens_display_group_id_display_groups_id_fk": {
+          "name": "allergens_display_group_id_display_groups_id_fk",
+          "tableFrom": "allergens",
+          "tableTo": "display_groups",
+          "columnsFrom": [
+            "display_group_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.daily_aggregates": {
       "name": "daily_aggregates",
       "schema": "",
@@ -238,150 +390,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.plant_proteins": {
-      "name": "plant_proteins",
-      "schema": "",
-      "columns": {
-        "plant_id": {
-          "name": "plant_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "protein_id": {
-          "name": "protein_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "plant_proteins_plant_id_plants_id_fk": {
-          "name": "plant_proteins_plant_id_plants_id_fk",
-          "tableFrom": "plant_proteins",
-          "tableTo": "plants",
-          "columnsFrom": [
-            "plant_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "plant_proteins_protein_id_proteins_id_fk": {
-          "name": "plant_proteins_protein_id_proteins_id_fk",
-          "tableFrom": "plant_proteins",
-          "tableTo": "proteins",
-          "columnsFrom": [
-            "protein_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "plant_proteins_plant_id_protein_id_pk": {
-          "name": "plant_proteins_plant_id_protein_id_pk",
-          "columns": [
-            "plant_id",
-            "protein_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.plants": {
-      "name": "plants",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "scientific_name": {
-          "name": "scientific_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "type": {
-          "name": "type",
-          "type": "plant_type",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "family_id": {
-          "name": "family_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "featured": {
-          "name": "featured",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "display_group_id": {
-          "name": "display_group_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "plants_family_id_families_id_fk": {
-          "name": "plants_family_id_families_id_fk",
-          "tableFrom": "plants",
-          "tableTo": "families",
-          "columnsFrom": [
-            "family_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "plants_display_group_id_display_groups_id_fk": {
-          "name": "plants_display_group_id_display_groups_id_fk",
-          "tableFrom": "plants",
-          "tableTo": "display_groups",
-          "columnsFrom": [
-            "display_group_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.proteins": {
       "name": "proteins",
       "schema": "",
@@ -586,6 +594,16 @@
     }
   },
   "enums": {
+    "public.allergen_category": {
+      "name": "allergen_category",
+      "schema": "public",
+      "values": [
+        "plant",
+        "food",
+        "animal",
+        "other"
+      ]
+    },
     "public.plant_type": {
       "name": "plant_type",
       "schema": "public",
