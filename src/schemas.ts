@@ -1,5 +1,31 @@
 import { z } from "zod";
 
+/** Allergen categories the cross-reactivity endpoint can return. `plant` is
+ * sourced from the plants table; the rest from the allergens table. */
+export const ALLERGEN_CATEGORIES = ["plant", "food", "animal", "other"] as const;
+export type AllergenCategory = (typeof ALLERGEN_CATEGORIES)[number];
+
+/**
+ * `?categories=plant,food,animal,other` — a comma-separated list. Defaults to
+ * plants only, so existing callers (and the report flow) are unaffected.
+ */
+export const crossReactivityQuerySchema = z.object({
+  categories: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s
+        ? s
+            .split(",")
+            .map((c) => c.trim())
+            .filter(Boolean)
+        : ["plant"],
+    )
+    .pipe(z.array(z.enum(ALLERGEN_CATEGORIES)).min(1)),
+});
+
+export type CrossReactivityQuery = z.infer<typeof crossReactivityQuerySchema>;
+
 export const createSubmissionSchema = z
   .object({
     // The user picks a place from the typeahead; the server resolves it to the

@@ -1,9 +1,11 @@
+import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { getHealth } from "../controllers/health.controller.js";
 import {
   getCrossReactivity,
   getMeta,
 } from "../controllers/meta.controller.js";
+import { crossReactivityQuerySchema } from "../schemas.js";
 import { placesRoutes } from "./places.routes.js";
 import { regionsRoutes } from "./regions.routes.js";
 import { reportsRoutes } from "./reports.routes.js";
@@ -12,7 +14,11 @@ export const router = new Hono();
 
 router.get("/health", getHealth);
 router.get("/meta", getMeta);
-router.get("/meta/cross-reactivity", getCrossReactivity);
+router.get(
+  "/meta/cross-reactivity",
+  zValidator("query", crossReactivityQuerySchema),
+  getCrossReactivity,
+);
 router.route("/places", placesRoutes);
 router.route("/reports", reportsRoutes);
 router.route("/regions", regionsRoutes);

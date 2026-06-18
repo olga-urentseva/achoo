@@ -1,33 +1,36 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db } from "../db/index.js";
 import {
+  allergenProteins,
+  allergens,
   displayGroups,
   families,
-  plantProteins,
-  plants,
   proteins,
 } from "../db/schema.js";
 import { SEVERITY_COLORS } from "../lib/severity.js";
+import type { AllergenCategory } from "../schemas.js";
 
 /**
  * Everything the report form needs: the pickable plants (with their family, so
  * the client can match a user's saved plants to families locally), the friendly
- * display groups, the family labels, and the severity scale + colors.
+ * display groups, the family labels, and the severity scale + colors. Plants are
+ * the allergen rows that carry a pollen `type` (the rest are food/animal/other).
  */
 export async function getMeta() {
   const [plantRows, groupRows, familyRows] = await Promise.all([
     db
       .select({
-        id: plants.id,
-        name: plants.name,
-        scientificName: plants.scientificName,
-        type: plants.type,
-        family: plants.familyId,
-        featured: plants.featured,
-        displayGroup: plants.displayGroupId,
+        id: allergens.id,
+        name: allergens.name,
+        scientificName: allergens.scientificName,
+        type: allergens.type,
+        family: allergens.familyId,
+        featured: allergens.featured,
+        displayGroup: allergens.displayGroupId,
       })
-      .from(plants)
-      .orderBy(desc(plants.featured), plants.name),
+      .from(allergens)
+      .where(isNotNull(allergens.type))
+      .orderBy(desc(allergens.featured), allergens.name),
     db
       .select({ id: displayGroups.id, label: displayGroups.label })
       .from(displayGroups)
@@ -47,46 +50,62 @@ export async function getMeta() {
   };
 }
 
+/** One allergen source in a cross-reactivity group, tagged with its category. */
+export interface CrossReactivitySource {
+  id: string;
+  name: string;
+  category: AllergenCategory;
+}
+
 export interface CrossReactivityGroup {
   protein: string;
   name: string;
   kind: "major" | "panallergen";
   strength: "strong" | "moderate" | "weak";
-  plants: string[];
+  sources: CrossReactivitySource[];
 }
 
 /**
- * Public cross-reactivity map, built from the proteins and their plants. The
- * client pairs it with the user's locally stored plants to suggest others they
- * may react to — ranking by `strength` and treating panallergens as weak hints.
+ * Public cross-reactivity map for the requested categories (plant, food, animal,
+ * other; defaults to plants only). All sources live in one `allergens` table and
+ * link to proteins via `allergen_proteins`, where the category sits on the edge
+ * so a source can belong to several (cattle: animal + food). The client pairs it
+ * with the user's saved picks to suggest others they may react to — ranking by
+ * `strength`, treating panallergens as weak hints.
  */
-export async function getCrossReactivity(): Promise<CrossReactivityGroup[]> {
+export async function getCrossReactivity(
+  categories: AllergenCategory[] = ["plant"],
+): Promise<CrossReactivityGroup[]> {
   const rows = await db
     .select({
       protein: proteins.id,
       name: proteins.name,
       kind: proteins.kind,
       strength: proteins.strength,
-      plant: plantProteins.plantId,
+      id: allergens.id,
+      sourceName: allergens.name,
+      category: allergenProteins.category,
     })
     .from(proteins)
-    .innerJoin(plantProteins, eq(plantProteins.proteinId, proteins.id))
+    .innerJoin(allergenProteins, eq(allergenProteins.proteinId, proteins.id))
+    .innerJoin(allergens, eq(allergens.id, allergenProteins.allergenId))
+    .where(inArray(allergenProteins.category, categories))
     .orderBy(proteins.id);
 
   const byProtein = new Map<string, CrossReactivityGroup>();
   for (const r of rows) {
-    let group = byProtein.get(r.protein);
-    if (!group) {
-      group = {
+    let g = byProtein.get(r.protein);
+    if (!g) {
+      g = {
         protein: r.protein,
         name: r.name,
         kind: r.kind,
         strength: r.strength,
-        plants: [],
+        sources: [],
       };
-      byProtein.set(r.protein, group);
+      byProtein.set(r.protein, g);
     }
-    group.plants.push(r.plant);
+    g.sources.push({ id: r.id, name: r.sourceName, category: r.category });
   }
   return [...byProtein.values()];
 }
